@@ -92,16 +92,19 @@ def _new_spiketrain(cls, signal, t_stop, units=None, dtype=None,
                     copy=True, sampling_rate=1.0 * pq.Hz,
                     t_start=0.0 * pq.s, waveforms=None, left_sweep=None,
                     name=None, file_origin=None, description=None,
-                    annotations=None):
+                    annotations=None, segment=None, unit=None):
     '''
     A function to map :meth:`BaseAnalogSignal.__new__` to function that
     does not do the unit checking. This is needed for :module:`pickle` to work.
     '''
     if annotations is None:
         annotations = {}
-    return SpikeTrain(signal, t_stop, units, dtype, copy, sampling_rate,
-                      t_start, waveforms, left_sweep, name, file_origin,
-                      description, **annotations)
+    obj = SpikeTrain(signal, t_stop, units, dtype, copy, sampling_rate,
+                     t_start, waveforms, left_sweep, name, file_origin,
+                     description, **annotations)
+    obj.segment = segment
+    obj.unit = unit
+    return obj
 
 
 class SpikeTrain(BaseNeo, pq.Quantity):
@@ -343,7 +346,7 @@ class SpikeTrain(BaseNeo, pq.Quantity):
                                  self.sampling_rate, self.t_start,
                                  self.waveforms, self.left_sweep,
                                  self.name, self.file_origin, self.description,
-                                 self.annotations)
+                                 self.annotations, self.segment, self.unit)
 
     def __array_finalize__(self, obj):
         '''
@@ -497,9 +500,8 @@ class SpikeTrain(BaseNeo, pq.Quantity):
         '''
         Copy the metadata from another :class:`SpikeTrain`.
         '''
-        for attr in ("t_start", "t_stop", "waveforms", "left_sweep",
-                     "sampling_rate", "name", "file_origin", "description",
-                     "annotations"):
+        for attr in ("left_sweep", "sampling_rate", "name", "file_origin",
+                     "description", "annotations"):
             setattr(self, attr, getattr(other, attr, None))
 
     def duplicate_with_new_data(self, signal, t_start=None, t_stop=None,
@@ -516,7 +518,7 @@ class SpikeTrain(BaseNeo, pq.Quantity):
         if waveforms is None:
             waveforms = self.waveforms
 
-        new_st = self.__class__(signal,t_start=t_start, t_stop=t_stop,
+        new_st = self.__class__(signal, t_start=t_start, t_stop=t_stop,
                                 waveforms=waveforms, units=self.units)
         new_st._copy_data_complement(self)
 
@@ -525,7 +527,7 @@ class SpikeTrain(BaseNeo, pq.Quantity):
         new_st.t_stop = t_stop
 
         # consistency check
-        _check_time_in_range(new_st, new_st.t_start, new_st.t_stop, view=True)
+        _check_time_in_range(new_st, new_st.t_start, new_st.t_stop, view=False)
         _check_waveform_dimensions(new_st)
         return new_st
 

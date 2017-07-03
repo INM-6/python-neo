@@ -264,6 +264,15 @@ class BlackrockIO(BaseIO):
                 if ext.startswith('ns'):
                     self._avail_nsx.append(int(ext[-1]))
 
+        # check if manually specified files were found
+        exts = ['nsx', 'nev', 'sif', 'ccf']
+        ext_overrides = [nsx_override, nev_override, sif_override, ccf_override]
+        for ext, ext_override in zip(exts, ext_overrides):
+            if ext_override is not None and self._avail_files[ext] == False:
+                raise ValueError('Specified {} file {} could not be '
+                                 'found.'.format(ext, ext_override))
+
+
         # These dictionaries are used internally to map the file specification
         # revision of the nsx and nev files to one of the reading routines
         self.__nsx_header_reader = {
@@ -1609,33 +1618,45 @@ class BlackrockIO(BaseIO):
 
         # define the higest time resolution
         # (for accurate manipulations of the time settings)
+        max_time = self.__get_max_time()
+        min_time = self.__get_min_time()
         highest_res = self.__nev_params('event_unit')
         user_n_starts = self.__transform_times(
-            user_n_starts, self.__get_min_time())
+            user_n_starts, min_time)
         user_n_stops = self.__transform_times(
-            user_n_stops, self.__get_max_time())
+            user_n_stops, max_time)
 
         # check if user provided as many n_starts as n_stops
         if len(user_n_starts) != len(user_n_stops):
             raise ValueError("n_starts and n_stops must be of equal length")
 
         # if necessary reset max n_stop to max time of file set
-        if user_n_starts[0] < self.__get_min_time():
-            user_n_starts[0] = self.__get_min_time()
-            self._print_verbose(
-                "First entry of n_start is smaller than min time of the file "
-                "set: n_start[0] set to min time of file set")
-        if user_n_starts[-1] > self.__get_max_time():
-            user_n_starts = user_n_starts[:-1]
-            user_n_stops = user_n_stops[:-1]
-            self._print_verbose(
-                "Last entry of n_start is larger than max time of the file "
-                "set: last n_start and n_stop entry are excluded")
-        if user_n_stops[-1] > self.__get_max_time():
-            user_n_stops[-1] = self.__get_max_time()
-            self._print_verbose(
-                "Last entry of n_stop is larger than max time of the file "
-                "set: n_stop[-1] set to max time of file set")
+        start_stop_id = 0
+        while start_stop_id < len(user_n_starts):
+            if user_n_starts[start_stop_id] < min_time:
+                user_n_starts[start_stop_id] = min_time
+                self._print_verbose(
+                    "Entry of n_start '{}' is smaller than min time of the file "
+                    "set: n_start set to min time of file set"
+                    "".format(user_n_starts[start_stop_id]))
+            if user_n_stops[start_stop_id] > max_time:
+                user_n_stops[start_stop_id] = max_time
+                self._print_verbose(
+                    "Entry of n_stop '{}' is larger than max time of the file "
+                    "set: n_stop set to max time of file set"
+                    "".format(user_n_stops[start_stop_id]))
+
+            if (user_n_stops[start_stop_id] < min_time
+                or user_n_starts[start_stop_id] > max_time):
+                user_n_stops.pop(start_stop_id)
+                user_n_starts.pop(start_stop_id)
+                self._print_verbose(
+                    "Entry of n_start is larger than max time or entry of "
+                    "n_stop is smaller than min time of the "
+                    "file set: n_start and n_stop are ignored")
+                continue
+            start_stop_id += 1
+
 
         # get intrinsic time settings of nsx files (incl. rec pauses)
         n_starts_files = []
@@ -1769,7 +1790,7 @@ class BlackrockIO(BaseIO):
         # get spike times for given time interval
         if not lazy:
             times = spikes['timestamp'] * event_unit
-            mask = (times >= n_start) & (times < n_stop)
+            mask = (times >= n_start) & (times <= n_stop)
             times = times[mask].astype(float)
         else:
             times = np.array([]) * event_unit
