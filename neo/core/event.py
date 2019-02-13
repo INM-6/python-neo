@@ -46,17 +46,17 @@ class Event(DataObject):
         >>>
         >>> evt = Event(np.arange(0, 30, 10)*s,
         ...             labels=np.array(['trig0', 'trig1', 'trig2'],
-        ...                             dtype='S'))
+        ...                             dtype='U'))
         >>>
         >>> evt.times
         array([  0.,  10.,  20.]) * s
         >>> evt.labels
         array(['trig0', 'trig1', 'trig2'],
-              dtype='|S5')
+              dtype='<U5')
 
     *Required attributes/properties*:
         :times: (quantity array 1D, numpy array 1D or list) The times of the events.
-        :labels: (numpy.array 1D dtype='S' or list) Names or labels for the events.
+        :labels: (numpy.array 1D dtype='U' or list) Names or labels for the events.
 
     *Recommended attributes/properties*:
         :name: (str) A label for the dataset.
@@ -84,7 +84,7 @@ class Event(DataObject):
         elif isinstance(times, (list, tuple)):
             times = np.array(times)
         if labels is None:
-            labels = np.array([], dtype='S')
+            labels = np.array([], dtype='U')
         else:
             labels = np.array(labels)
             if labels.size != times.size and labels.size:
