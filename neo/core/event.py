@@ -46,17 +46,17 @@ class Event(DataObject):
         >>>
         >>> evt = Event(np.arange(0, 30, 10)*s,
         ...             labels=np.array(['trig0', 'trig1', 'trig2'],
-        ...                             dtype='S'))
+        ...                             dtype='U'))
         >>>
         >>> evt.times
         array([  0.,  10.,  20.]) * s
         >>> evt.labels
         array(['trig0', 'trig1', 'trig2'],
-              dtype='|S5')
+              dtype='<U5')
 
     *Required attributes/properties*:
         :times: (quantity array 1D) The time of the events.
-        :labels: (numpy.array 1D dtype='S') Names or labels for the events.
+        :labels: (numpy.array 1D dtype='U') Names or labels for the events.
 
     *Recommended attributes/properties*:
         :name: (str) A label for the dataset.
@@ -74,14 +74,14 @@ class Event(DataObject):
 
     _single_parent_objects = ('Segment',)
     _quantity_attr = 'times'
-    _necessary_attrs = (('times', pq.Quantity, 1), ('labels', np.ndarray, 1, np.dtype('S')))
+    _necessary_attrs = (('times', pq.Quantity, 1), ('labels', np.ndarray, 1, np.dtype('U')))
 
     def __new__(cls, times=None, labels=None, units=None, name=None, description=None,
                 file_origin=None, array_annotations=None, **annotations):
         if times is None:
             times = np.array([]) * pq.s
         if labels is None:
-            labels = np.array([], dtype='S')
+            labels = np.array([], dtype='U')
         if units is None:
             # No keyword units, so get from `times`
             try:
@@ -140,12 +140,8 @@ class Event(DataObject):
         '''
         Returns a string representing the :class:`Event`.
         '''
-        # need to convert labels to unicode for python 3 or repr is messed up
-        if PY_VER == 3:
-            labels = self.labels.astype('U')
-        else:
-            labels = self.labels
-        objs = ['%s@%s' % (label, time) for label, time in zip(labels, self.times)]
+
+        objs = ['%s@%s' % (label, str(time)) for label, time in zip(self.labels, self.times)]
         return '<Event: %s>' % ', '.join(objs)
 
     def _repr_pretty_(self, pp, cycle):
