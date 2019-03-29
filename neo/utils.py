@@ -408,7 +408,7 @@ def add_epoch(
         kwargs['labels'] = [
             ('%s_%i' % (kwargs['name'], i)).encode('ascii') for i in range(len(times))]
 
-    ep = neo.Epoch(times=times, durations=durations, **kwargs)
+    ep = neo.Epoch(times=times.flatten(), durations=durations.flatten(), **kwargs)
 
     ep.annotate(**event1.annotations)
 
