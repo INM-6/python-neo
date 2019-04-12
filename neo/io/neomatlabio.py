@@ -305,6 +305,17 @@ class NeoMatlabIO(BaseIO):
             else:
                 struct[attrname] = getattr(ob, attrname)
 
+        for i, attr in enumerate(ob.annotations.items()):
+            attrname, attr = attr[0], attr[1]
+
+            if isinstance(attr, pq.Quantity):
+                struct[attrname] = attr.magnitude
+                struct[attrname + '_units'] = attr.dimensionality.string
+            elif isinstance(attr, datetime):
+                struct[attrname] = str(attr)
+            else:
+                struct[attrname] = attr
+
         return struct
 
     def create_ob_from_struct(self, struct, classname):
