@@ -38,13 +38,10 @@ def check_has_dimensions_time(*values):
     '''
     errmsgs = []
     for value in values:
-        dim = value.dimensionality.simplified
-        if (len(dim) != 1 or
-                list(dim.values())[0] != 1 or not
-                isinstance(list(dim.keys())[0], pq.UnitTime)):
-            errmsgs.append(
-                "value {} has dimensions {}, not [time]".format(
-                    value, dim))
+        dim = value.dimensionality
+        if (len(dim) != 1 or list(dim.values())[0] != 1 or not isinstance(list(dim.keys())[0],
+                                                                          pq.UnitTime)):
+            errmsgs.append("value {} has dimensions {}, not [time]".format(value, dim.simplified))
     if errmsgs:
         raise ValueError("\n".join(errmsgs))
 
