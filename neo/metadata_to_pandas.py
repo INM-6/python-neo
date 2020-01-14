@@ -87,7 +87,8 @@ def _object_to_df(obj, attributes=[], use_array_annotations=True,
     return obj_df
 
 def _objectlist_to_df(objlist, attributes=[], relations=[],
-                      relation_index='name', use_annotations=True):
+                      relation_index='name', use_annotations=True,
+                      use_size=False):
     """
     Internal function.
 
@@ -114,32 +115,41 @@ def _objectlist_to_df(objlist, attributes=[], relations=[],
         DataFrame containing all values of the given attributes
         (and annotations) for each element in the neo object.
     """
+    init_dict = {}
     if use_annotations:
-        keys = np.unique([key for obj in objlist
-                          for key in obj.annotations.keys()])
-        list_annotations = defaultdict(list)
-        for obj in objlist:
-            for key in keys:
-                try:
-                    list_annotations[key].append(obj.annotations[key])
-                except KeyError:
-                    list_annotations[key].append(None)
-        objlist_df = pd.DataFrame(data=list_annotations)
+        init_dict.update(_transpose_dicts(objlist, 'annotations'))
+    if use_size:
+        init_dict.update(_transpose_dicts(objlist, 'size'))
+    if init_dict:
+        objlist_df = pd.DataFrame(data=init_dict)
     else:
         objlist_df = None
     for attr in attributes:
+        column = [obj.__getattribute__(attr) if hasattr(obj, attr)
+                  else None for obj in objlist]
         objlist_df = _add_column(column_name=attr,
-                                 column=[obj.__getattribute__(attr)
-                                         for obj in objlist],
+                                 column=column,
                                  df=objlist_df)
     for rel in relations:
-        column = [None if obj.__getattribute__(rel) is None else
-                  obj.__getattribute__(rel).__getattribute__(relation_index)
-                  for obj in objlist]
+        column = [obj.__getattribute__(rel).__getattribute__(relation_index)
+                  if hasattr(obj, rel) else None for obj in objlist]
         _add_column(column_name='{}.{}'.format(rel, relation_index),
                     column=column,
                     df=objlist_df)
     return objlist_df
+
+def _transpose_dicts(objlist, dict_name):
+    keys = np.unique([key for obj in objlist
+                      for key in obj.__getattribute__(dict_name).keys()])
+    list_annotations = defaultdict(list)
+    for obj in objlist:
+        for key in keys:
+            try:
+                list_annotations[key]\
+                .append(obj.__getattribute__(dict_name)[key])
+            except KeyError:
+                list_annotations[key].append(None)
+    return list_annotations
 
 # bottom level objects (children of Segment)
 
@@ -198,36 +208,43 @@ def EventList_to_df(events):
 # container objects
 
 def Segment_to_df(seg):
-    attributes = ['__class__', 'name', 'description', 'file_origin', 'shape']
-    relations = ['block']
+    attributes = ['__class__', 'name', 'description', 'file_origin', 'shape',
+                  'size']
     display(seg)
     return _objectlist_to_df(objlist=seg.children, attributes=attributes,
-                             relations=relations, use_annotations=False)
+                             use_annotations=False)
 
-# def Block_to_df(blk):
+def Block_to_df(blk):
+    return Segment_to_df(blk)
+
+def ChannelIndex_to_df(chx):
+    attributes = ['index', 'channel_ids', 'channel_names', 'coordinates']
+    display(chx)
+    return _object_to_df(obj=chx, attributes=attributes,
+                         use_array_annotations=False)
+
+def Unit_to_df(unit):
+    display(unit)
+    return SpikeTrainList_to_df(unit.spiketrains)
+
+# lists of container objects
 
 def SegmentList_to_df(segs):
     attributes = ['__class__', 'name', 'description', 'file_origin']
     relations = ['block']
-    seglist_df =  _objectlist_to_df(objlist=segs, attributes=attributes,
-                                    relations=relations)
-    children = ['analogsignals', 'spiketrains', 'epochs', 'events']
-    for child in children:
-        column = [None if obj.__getattribute__(child) is None else
-                  obj.__getattribute__(child).__len__()
-                  for obj in segs]
-        _add_column(column_name='{}.{}'.format(child, '__len__()'),
-                    column=column,
-                    df=seglist_df)
-    return seglist_df
+    return _objectlist_to_df(objlist=segs, attributes=attributes,
+                             relations=relations, use_size=True)
 
-# def BlockList_to_df(blks):
+def BlockList_to_df(blks):
+    attributes = ['__class__', 'name', 'description', 'file_origin']
+    return  _objectlist_to_df(objlist=blks, attributes=attributes,
+                              use_size=True)
 
-# children of Block
+def ChannelIndexList_to_df(chxs):
+    return SegmentList_to_df(chxs)
 
-def ChannelIndex_to_df(chx):
-    attributes = ['index', 'channel_ids', 'channel_names', 'coordinates']
-    return _object_to_df(obj=chx, attributes=attributes,
-                         use_array_annotations=False)
-
-# def Units_to_df(units):
+def UnitList_to_df(units):
+    attributes = ['__class__', 'name', 'description', 'file_origin']
+    relations = ['block', 'channel_index']
+    return _objectlist_to_df(objlist=units, attributes=attributes,
+                             relations=relations, use_size=True)
