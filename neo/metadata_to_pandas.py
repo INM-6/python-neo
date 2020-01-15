@@ -155,31 +155,35 @@ def _transpose_dicts(objlist, dict_name):
 
 # bottom level objects (children of Segment)
 
-def AnalogSignal_to_df(asig):
+def AnalogSignal_to_df(asig, print_overview=True):
     asig_df = _object_to_df(asig)
     if asig.channel_index is not None:
         chx_df = ChannelIndex_to_df(asig.channel_index)
         asig_df = asig_df.merge(chx_df, how='outer',
                                 left_index=True, right_on='index')
-    display(asig)
+    if print_overview:
+        display(asig)
     return asig_df
 
-def IrregularlySampledSignal_to_df(irrsig):
-    return AnalogSignal_to_df(irrsig)
+def IrregularlySampledSignal_to_df(irrsig, print_overview=True):
+    return AnalogSignal_to_df(irrsig, print_overview=print_overview)
 
-def SpikeTrain_to_df(st):
+def SpikeTrain_to_df(st, print_overview=True):
     attributes = ['left_sweep', 'waveform']
-    display(st)
+    if print_overview:
+        display(st)
     return _object_to_df(obj=st, attributes=attributes, to_bool=[False, True])
 
-def Epoch_to_df(epoch):
+def Epoch_to_df(epoch, print_overview=True):
     attributes = ['times', 'durations', 'labels']
-    display(epoch)
+    if print_overview:
+        display(epoch)
     return _object_to_df(obj=epoch, attributes=attributes)
 
-def Event_to_df(evt):
+def Event_to_df(evt, print_overview=True):
     attributes = ['times', 'labels']
-    display(evt)
+    if print_overview:
+        display(evt)
     return _object_to_df(obj=evt, attributes=attributes)
 
 # lists of bottom level objects
@@ -192,7 +196,11 @@ def AnalogSignalList_to_df(asigs):
                              relations=relations)
 
 def IrregularlySampledSignalList_to_df(irrsigs):
-    return AnalogSignalList_to_df(irrsigs)
+    attributes = ['__class__', 'name', 'description', 'file_origin', 'shape',
+                  't_start', 't_stop']
+    relations = ['channel_index', 'segment']
+    return _objectlist_to_df(objlist=irrsigs, attributes=attributes,
+                             relations=relations)
 
 def SpikeTrainList_to_df(sts):
     attributes = ['__class__', 'name', 'description', 'file_origin', 'shape',
@@ -212,24 +220,27 @@ def EventList_to_df(events):
 
 # container objects
 
-def Segment_to_df(seg):
+def Segment_to_df(seg, print_overview=True):
     attributes = ['__class__', 'name', 'description', 'file_origin', 'shape',
                   'size']
-    display(seg)
+    if print_overview:
+        display(seg)
     return _objectlist_to_df(objlist=seg.children, attributes=attributes,
                              use_annotations=False)
 
-def Block_to_df(blk):
-    return Segment_to_df(blk)
+def Block_to_df(blk, print_overview=True):
+    return Segment_to_df(blk, print_overview=print_overview)
 
-def ChannelIndex_to_df(chx):
+def ChannelIndex_to_df(chx, print_overview=True):
     attributes = ['index', 'channel_ids', 'channel_names', 'coordinates']
-    display(chx)
+    if print_overview:
+        display(chx)
     return _object_to_df(obj=chx, attributes=attributes,
                          use_array_annotations=False)
 
-def Unit_to_df(unit):
-    display(unit)
+def Unit_to_df(unit, print_overview=True):
+    if print_overview:
+        display(unit)
     return SpikeTrainList_to_df(unit.spiketrains)
 
 # lists of container objects
