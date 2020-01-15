@@ -238,7 +238,7 @@ def SegmentList_to_df(segs):
     attributes = ['__class__', 'name', 'description', 'file_origin']
     relations = ['block']
     return _objectlist_to_df(objlist=segs, attributes=attributes,
-                             relations=relations, use_size=True))
+                             relations=relations, use_size=True)
 
 def BlockList_to_df(blks):
     attributes = ['__class__', 'name', 'description', 'file_origin']
