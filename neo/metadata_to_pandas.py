@@ -34,6 +34,8 @@ def _add_column(column_name, column, df=None, to_bool=False):
     """
     if column is None:
         return df
+    elif not hasattr(column, "__len__"):
+        column = [column]
     if to_bool:
         column = [bool(value) for value in column]
     if df is None:
@@ -189,6 +191,9 @@ def AnalogSignalList_to_df(asigs):
     return _objectlist_to_df(objlist=asigs, attributes=attributes,
                              relations=relations)
 
+def IrregularlySampledSignalList_to_df(irrsigs):
+    return AnalogSignalList_to_df(irrsigs)
+
 def SpikeTrainList_to_df(sts):
     attributes = ['__class__', 'name', 'description', 'file_origin', 'shape',
                   't_start', 't_stop', 'sampling_rate']
@@ -233,7 +238,7 @@ def SegmentList_to_df(segs):
     attributes = ['__class__', 'name', 'description', 'file_origin']
     relations = ['block']
     return _objectlist_to_df(objlist=segs, attributes=attributes,
-                             relations=relations, use_size=True)
+                             relations=relations, use_size=True))
 
 def BlockList_to_df(blks):
     attributes = ['__class__', 'name', 'description', 'file_origin']
