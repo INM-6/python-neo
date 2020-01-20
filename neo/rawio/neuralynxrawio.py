@@ -87,6 +87,7 @@ class NeuralynxRawIO(BaseRawIO):
 
             _, ext = os.path.splitext(filename)
             ext = ext[1:]  # remove dot
+            ext = ext.lower()  # accept also upper case extensions
             if ext not in self.extensions:
                 continue
 
