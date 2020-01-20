@@ -108,7 +108,7 @@ class NeuralynxRawIO(BaseRawIO):
                     # a signal channels
                     units = 'uV'
                     gain = info['bit_to_microVolt'][idx]
-                    if info['input_inverted']:
+                    if 'input_inverted' in info and info['input_inverted']:
                         gain *= -1
                     offset = 0.
                     group_id = 0
@@ -594,14 +594,14 @@ def read_txt_header(filename):
     # find keys
     info = OrderedDict()
     for k1, k2, type_ in txt_header_keys:
-        pattern = r'-(?P<name>' + k1 + r') (?P<value>[\S ]*)'
+        pattern = r'-(?P<name>' + k1 + r')( |\t)(?P<value>[\S ]*)'
         matches = re.findall(pattern, txt_header)
         for match in matches:
             if k2 == '':
                 name = match[0]
             else:
                 name = k2
-            value = match[1].rstrip(' ')
+            value = match[2].rstrip(' ')
             if type_ is not None:
                 value = type_(value)
             info[name] = value
@@ -659,20 +659,32 @@ def read_txt_header(filename):
 
     # filename and datetime depend on app name and its version
     if info['ApplicationName'] == 'Cheetah':
-        if info['ApplicationVersion'] <= '5.6.4':
-            old_date_format = True
+        if info['ApplicationVersion'] < '4.0.0':
+            date_format_version = 1
+        elif info['ApplicationVersion'] <= '5.6.4':
+           date_format_version = 2
         else:
-            old_date_format = False
+            date_format_version = 3
     else:
-        # for other version (pegasus, ..) I don't known the rules
-        old_date_format = (r'## Time Opened' in txt_header)
+        if r'## Time Opened:' in txt_header:
+            date_format_version = 1
+        elif r'## Time Opened' in txt_header:
+            date_format_version = 2
+        else:
+            date_format_version = 3
 
-    if old_date_format:
+    if date_format_version == 1:
+        datetime1_regex = r'## Time Opened: \(m/d/y\): (?P<date>\S+)  At Time: (?P<time>\S+)'
+        datetime2_regex = r''
+        filename_regex = r'## File Name: (?P<filename>\S+)'
+        datetimeformat = '%m/%d/%Y %H:%M:%S.%f'
+    elif date_format_version == 2:
         datetime1_regex = r'## Time Opened \(m/d/y\): (?P<date>\S+)  \(h:m:s\.ms\) (?P<time>\S+)'
         datetime2_regex = r'## Time Closed \(m/d/y\): (?P<date>\S+)  \(h:m:s\.ms\) (?P<time>\S+)'
         filename_regex = r'## File Name (?P<filename>\S+)'
         datetimeformat = '%m/%d/%Y %H:%M:%S.%f'
     else:
+        # for date_format_version == 3 and all unknown cases
         datetime1_regex = r'-TimeCreated (?P<date>\S+) (?P<time>\S+)'
         datetime2_regex = r'-TimeClosed (?P<date>\S+) (?P<time>\S+)'
         filename_regex = r'-OriginalFileName "?(?P<filename>\S+)"?'
@@ -685,8 +697,11 @@ def read_txt_header(filename):
 
     info['recording_opened'] = datetime.datetime.strptime(
         dt1['date'] + ' ' + dt1['time'], datetimeformat)
-    info['recording_closed'] = datetime.datetime.strptime(
-        dt2['date'] + ' ' + dt2['time'], datetimeformat)
+    if 'date' in dt2 and 'time' in dt2:
+        info['recording_closed'] = datetime.datetime.strptime(
+            dt2['date'] + ' ' + dt2['time'], datetimeformat)
+    else:
+        info['recording_closed'] = None
 
     return info
 
