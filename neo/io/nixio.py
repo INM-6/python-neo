@@ -137,7 +137,7 @@ def check_nix_version():
         )
 
     # nixio version numbers have a 'v' prefix which breaks the comparison
-    nixverstr = nix.__version__.lstrip("v")
+    nixverstr = nix.__version__.lstrip("v").replace('dev', '9')
     try:
         nixver = Version(nixverstr)
     except ValueError:
@@ -971,7 +971,6 @@ class NixIO(BaseIO):
         tunits = units_to_string(epoch.times.units)
         durations = epoch.durations.magnitude
         dunits = units_to_string(epoch.durations.units)
-
 
         timesda = nixblock.create_data_array(
             "{}.times".format(nix_name), "neo.epoch.times", data=times
