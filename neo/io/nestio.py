@@ -93,7 +93,7 @@ class NestIO(BaseIO):
                              t_stop=None, sampling_period=None,
                              id_column=0, time_column=1,
                              value_columns=2, value_types=None,
-                             value_units=None):
+                             value_units=None, sampling_diff_tolerance=1e-12):
         """
         Internal function called by read_analogsignal() and read_segment().
         """
@@ -143,10 +143,13 @@ class NestIO(BaseIO):
             condition_column=condition_column,
             sorting_columns=sorting_column)
 
-        sampling_period = self._check_input_sampling_period(sampling_period,
-                                                            time_column,
-                                                            time_unit,
-                                                            data)
+        sampling_period = self._check_input_sampling_period(
+            sampling_period,
+            time_column,
+            time_unit,
+            data,
+            sampling_diff_tolerance)
+
         analogsignal_list = []
 
         # extracting complete gid list for anasig generation
@@ -348,7 +351,7 @@ class NestIO(BaseIO):
         return gid_list, id_column
 
     def _check_input_sampling_period(self, sampling_period, time_column,
-                                     time_unit, data):
+                                     time_unit, data, sampling_diff_tolerance):
         """
         Checks sampling period, times and time unit for consistency.
 
@@ -365,8 +368,11 @@ class NestIO(BaseIO):
                 data_sampling = np.unique(
                     np.diff(sorted(np.unique(data[:, 1]))))
                 if len(data_sampling) > 1:
-                    raise ValueError('Different sampling distances found in '
-                                     'data set (%s)' % data_sampling)
+                    if np.max(np.diff(data_sampling)) < sampling_diff_tolerance:
+                        dt = data_sampling[0]
+                    else:
+                        raise ValueError('Different sampling distances found in '
+                                         'data set (%s)' % data_sampling)
                 else:
                     dt = data_sampling[0]
             else:
@@ -475,7 +481,8 @@ class NestIO(BaseIO):
                      t_stop=None, sampling_period=None, id_column_dat=0,
                      time_column_dat=1, value_columns_dat=2,
                      id_column_gdf=0, time_column_gdf=1, value_types=None,
-                     value_units=None, lazy=False):
+                     value_units=None, sampling_diff_tolerance=1e-12,
+                     lazy=False):
         """
         Reads a Segment which contains SpikeTrain(s) with specified neuron IDs
         from the GDF data.
@@ -510,6 +517,8 @@ class NestIO(BaseIO):
             Nest data type of the analog values recorded, eg.'V_m', 'I', 'g_e'
         value_units : Quantity (amplitude), default: None
             The physical unit of the recorded signal values.
+        sampling_diff_tolerance : float, optional, default: 1e-12
+            Maximal tolerance for the difference between two sampling periods.
         lazy : bool, optional, default: False
 
         Returns
@@ -548,7 +557,8 @@ class NestIO(BaseIO):
                 time_column=time_column_dat,
                 value_columns=value_columns_dat,
                 value_types=value_types,
-                value_units=value_units)
+                value_units=value_units,
+                sampling_diff_tolerance=sampling_diff_tolerance)
         if 'gdf' in self.avail_formats:
             seg.spiketrains = self.__read_spiketrains(
                 gid_list,
@@ -604,14 +614,16 @@ class NestIO(BaseIO):
         assert not lazy, 'Do not support lazy'
 
         # __read_spiketrains() needs a list of IDs
-        return self.__read_analogsignals([gid], time_unit,
-                                         t_start, t_stop,
-                                         sampling_period=sampling_period,
-                                         id_column=id_column,
-                                         time_column=time_column,
-                                         value_columns=value_column,
-                                         value_types=value_type,
-                                         value_units=value_unit)[0]
+        return self.__read_analogsignals(
+            [gid], time_unit,
+            t_start, t_stop,
+            sampling_period=sampling_period,
+            id_column=id_column,
+            time_column=time_column,
+            value_columns=value_column,
+            value_types=value_type,
+            value_units=value_unit,
+            sampling_diff_tolerance=sampling_diff_tolerance)[0]
 
     def read_spiketrain(
             self, gdf_id=None, time_unit=pq.ms, t_start=None, t_stop=None,
