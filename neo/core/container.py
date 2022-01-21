@@ -75,15 +75,13 @@ def filterdata(data, targdict=None, objects=None, **kwargs):
         results = []
         for key, value in sorted(targdict.items()):
             for obj in data:
-                if (hasattr(obj, key) and getattr(obj, key) == value and
-                        all([obj is not res for res in results])):
+                if (hasattr(obj, key) and getattr(obj, key) == value):
                     results.append(obj)
-                elif(isinstance(value, FilterCondition)):
-                    if (key in obj.annotations and value.test(obj.annotations[key]) and
-                          all([obj is not res for res in results])):
+                elif (isinstance(value, FilterCondition)):
+                    if (key in obj.annotations and value.test(obj.annotations[key])):
                         results.append(obj)
-                elif (key in obj.annotations and obj.annotations[key] == value and all([obj is not res for res in results])):
-                        results.append(obj)
+                elif (key in obj.annotations and obj.annotations[key] == value):
+                    results.append(obj)
 
     # keep only objects of the correct classes
     if objects:
@@ -94,7 +92,11 @@ def filterdata(data, targdict=None, objects=None, **kwargs):
     if results and all(isinstance(obj, SpikeTrain) for obj in results):
         return SpikeTrainList(results)
     else:
-        return results
+        res = []
+        for elem in results:
+            if all([elem is not tmp for tmp in res]):
+                res.append(elem)
+        return res
 
 class FilterCondition():
     """
