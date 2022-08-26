@@ -160,6 +160,11 @@ class PhyRawIO(BaseRawIO):
 
             cluster_mask = (self._spike_clusters == clust_id).flatten()
 
+            current_templates = self._spike_templates[cluster_mask].flatten()
+            unique_templates = np.unique(current_templates)
+            spiketrain_an['templates'] = unique_templates
+            spiketrain_an['__array_annotations__']['templates'] = current_templates
+
             if self._amplitudes is not None:
                 spiketrain_an['__array_annotations__']['amplitudes'] = \
                     self._amplitudes[cluster_mask]
@@ -175,7 +180,7 @@ class PhyRawIO(BaseRawIO):
                                 current_pc_features[:, pc_idx, channel_idx]
 
             if self._pc_feature_ind is not None:
-                spiketrain_an['pc_feature_ind'] = self._pc_feature_ind[index]
+                spiketrain_an['pc_feature_ind'] = self._pc_feature_ind[unique_templates]
 
     def _segment_t_start(self, block_index, seg_index):
         assert block_index == 0
