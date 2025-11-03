@@ -20,6 +20,7 @@ import quantities as pq
 
 from neo.io.baseio import BaseIO
 from neo.core import Block, Segment, SpikeTrain, AnalogSignal
+from neo.core.spiketrainlist import SpikeTrainList
 
 value_type_dict = {"V": pq.mV, "I": pq.pA, 
                    "g": pq.CompoundUnit("10^-9*S"), 
@@ -227,7 +228,7 @@ class NestIO(BaseIO):
             id_column, time_column, gdf_id_list, t_start, t_stop
         )
 
-        spiketrain_list = []
+        spiketrain_list = SpikeTrainList()
         for col in self.IOs:
 
             data = col.get_columns(
