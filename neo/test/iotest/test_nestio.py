@@ -438,7 +438,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
 
-        dat = np.loadtxt(filename)
+        dat = np.loadtxt(filename, dtype=np.float32)
         target_data = dat[:, 1][np.where(dat[:, 0] == id_to_test)]
 
         st = seg.spiketrains[0]
