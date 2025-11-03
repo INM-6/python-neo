@@ -192,7 +192,7 @@ class NestIO(BaseIO):
                             sampling_period=sampling_period,
                             t_start=anasig_start_time,
                             id=i,
-                            source_file=col.filename,
+                            file_origin=col.filename,
                             type=value_types[v_id]))
                         # check for correct length of analogsignal
                         assert (analogsignal_list[-1].t_stop
@@ -255,7 +255,7 @@ class NestIO(BaseIO):
                                                       t_start=t_start,
                                                       t_stop=t_stop,
                                                       id=nid,
-                                                      source_file=col.filename,
+                                                      file_origin=col.filename,
                                                       **args))
 
             # if id_column is not given, all spike times are collected in one
@@ -266,7 +266,7 @@ class NestIO(BaseIO):
                                                    t_start=t_start,
                                                    t_stop=t_stop,
                                                    id=None,
-                                                   source_file=col.filename,
+                                                   file_origin=col.filename,
                                                    **args))
         return spiketrain_list
 
