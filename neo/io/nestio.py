@@ -262,12 +262,12 @@ class NestIO(BaseIO):
             #  spike train with id=None
             else:
                 train = data[:, time_column]
-                spiketrain_list.append([SpikeTrain(train, units=time_unit,
+                spiketrain_list.append(SpikeTrain(train, units=time_unit,
                                                    t_start=t_start,
                                                    t_stop=t_stop,
                                                    id=None,
                                                    source_file=col.filename,
-                                                   **args)])
+                                                   **args))
         return spiketrain_list
 
     def _check_input_times(self, t_start, t_stop, mandatory=True):
@@ -695,7 +695,8 @@ class NestIO(BaseIO):
         if gdf_id is None and id_column is not None:
             raise ValueError("No neuron ID specified but file contains " "neuron IDs in column " + str(id_column) + ".")
 
-        return self.__read_spiketrains([gdf_id], time_unit, t_start, t_stop, id_column, time_column, **args)[0]
+        a = self.__read_spiketrains([gdf_id], time_unit, t_start, t_stop, id_column, time_column, **args)
+        return a[0]
 
 
 class ColumnIO:
