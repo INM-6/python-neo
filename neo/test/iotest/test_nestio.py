@@ -325,7 +325,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
-            gdf_id=1, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
+            neuron_id=1, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
         )
         r.read_segment(
             gid_list=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
@@ -334,7 +334,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time_in_steps-1258-0.gdf")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
-            gdf_id=1,
+            neuron_id=1,
             t_start=400.0 * pq.ms,
             t_stop=500.0 * pq.ms,
             time_unit=pq.CompoundUnit("0.1*ms"),
@@ -360,7 +360,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0time_in_steps-1257-0.gdf")
         r = NestIO(filenames=filename)
         st = r.read_spiketrain(
-            gdf_id=None,
+            neuron_id=None,
             t_start=400.0 * pq.ms,
             t_stop=500.0 * pq.ms,
             time_unit=pq.CompoundUnit("0.1*ms"),
@@ -384,7 +384,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time_in_steps-1258-0.gdf")
         r = NestIO(filenames=filename)
         st = r.read_spiketrain(
-            gdf_id=1,
+            neuron_id=1,
             t_start=400.0 * pq.ms,
             t_stop=500.0 * pq.ms,
             time_unit=pq.CompoundUnit("0.1*ms"),
@@ -412,7 +412,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         """
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
-        st = r.read_spiketrain(gdf_id=1, t_start=400. * pq.ms,
+        st = r.read_spiketrain(neuron_id=1, t_start=400. * pq.ms,
                                t_stop=500. * pq.ms,
                                lazy=False, id_column=0, time_column=1)
         self.assertTrue(st.magnitude.dtype == np.float32)
@@ -524,7 +524,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         ID = 7
-        st = r.read_spiketrain(gdf_id=ID, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
+        st = r.read_spiketrain(neuron_id=ID, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
         self.assertEqual(ID, st.annotations["id"])
 
     def test_read_segment_annotates(self):
@@ -544,7 +544,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         """
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
-        st = r.read_spiketrain(gdf_id=0, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, layer="L23", population="I")
+        st = r.read_spiketrain(neuron_id=0, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, layer="L23", population="I")
         self.assertEqual(0, st.annotations.pop("id"))
         self.assertEqual("L23", st.annotations.pop("layer"))
         self.assertEqual("I", st.annotations.pop("population"))
@@ -593,7 +593,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         with self.assertRaises(ValueError):
-            r.read_spiketrain(gdf_id=1, t_stop=500.0 * pq.ms, lazy=False, id_column=0, time_column=1)
+            r.read_spiketrain(neuron_id=1, t_stop=500.0 * pq.ms, lazy=False, id_column=0, time_column=1)
         with self.assertRaises(ValueError):
             r.read_segment(gid_list=[1, 2, 3], t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
 
@@ -604,7 +604,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         with self.assertRaises(ValueError):
-            r.read_spiketrain(gdf_id=1, t_start=400.0 * pq.ms, lazy=False, id_column=0, time_column=1)
+            r.read_spiketrain(neuron_id=1, t_start=400.0 * pq.ms, lazy=False, id_column=0, time_column=1)
         with self.assertRaises(ValueError):
             r.read_segment(gid_list=[1, 2, 3], t_start=400.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
 
@@ -616,9 +616,9 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         with self.assertRaises(ValueError):
-            r.read_spiketrain(gdf_id=[], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
+            r.read_spiketrain(neuron_id=[], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
         with self.assertRaises(ValueError):
-            r.read_spiketrain(gdf_id=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
+            r.read_spiketrain(neuron_id=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
         with self.assertRaises(ValueError):
             r.read_spiketrain(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
 
@@ -640,7 +640,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         """
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
-        st = r.read_spiketrain(gdf_id=0, t_start=400.0 * pq.ms, t_stop=410.0 * pq.ms)
+        st = r.read_spiketrain(neuron_id=0, t_start=400.0 * pq.ms, t_stop=410.0 * pq.ms)
         self.assertEqual(st.size, 0)
 
 

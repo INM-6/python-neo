@@ -8,7 +8,8 @@ Depends on: numpy, quantities
 Supported: Read
 
 Authors: Julia Sprenger, Maximilian Schmidt, Johanna Senk,
-Simon Essink, Robin Gutzen, Jasper Albers, Aitor Morales-Gregorio
+Simon Essink, Robin Gutzen, Jasper Albers,
+Aitor Morales-Gregorio, Michael Denker
 
 """
 
@@ -658,23 +659,26 @@ class NestIO(BaseIO):
         )[0]
 
     def read_spiketrain(
-        self, gdf_id=None, time_unit=pq.ms, t_start=None, t_stop=None, id_column=0, time_column=1, lazy=False, **args
+        self, neuron_id=None, time_unit=pq.ms, t_start=None, t_stop=None,
+        id_column=0, time_column=1, lazy=False, **args
     ):
         """
-        Reads a SpikeTrain with specified neuron ID from the GDF data.
+        Reads a SpikeTrain with specified neuron ID from the data file.
 
         Arguments
         ----------
-        gdf_id : int, default: None
-            The GDF ID of the returned SpikeTrain. gdf_id must be specified if
-            the GDF file contains neuron IDs. Providing [] loads all available
-            IDs.
-        time_unit : Quantity (time), optional, default: quantities.ms
+        neuron_id : int, default: None
+            The ID of the returned SpikeTrain. The ID must be specified if
+            the file contains neuron IDs.
+        time_unit : Quantity (time)
             The time unit of recorded time stamps.
-        t_start : Quantity (time), default: None
+            Default: quantities.ms
+        t_start : Quantity (time)
             Start time of SpikeTrain. t_start must be specified.
-        t_stop : Quantity (time), default: None
+            Default: None
+        t_stop : Quantity (time)
             Stop time of SpikeTrain. t_stop must be specified.
+            Default: None
         id_column : int, optional, default: 0
             Column index of neuron IDs.
         time_column : int, optional, default: 1
@@ -687,15 +691,16 @@ class NestIO(BaseIO):
             The requested SpikeTrain object with an annotation 'id'
             corresponding to the gdf_id parameter.
         """
-        assert not lazy, "Do not support lazy"
+        if lazy:
+            NotImplementedError("Lazy loading is not implemented for NestIO.")
 
-        if (not isinstance(gdf_id, int)) and gdf_id is not None:
+        if (not isinstance(neuron_id, int)) and neuron_id is not None:
             raise ValueError("gdf_id has to be of type int or None.")
 
-        if gdf_id is None and id_column is not None:
-            raise ValueError("No neuron ID specified but file contains " "neuron IDs in column " + str(id_column) + ".")
+        if neuron_id is None and id_column is not None:
+            raise ValueError(f"No neuron ID specified but file contains neuron IDs in column {id_column}.")
 
-        a = self.__read_spiketrains([gdf_id], time_unit, t_start, t_stop, id_column, time_column, **args)
+        a = self.__read_spiketrains([neuron_id], time_unit, t_start, t_stop, id_column, time_column, **args)
         return a[0]
 
 
