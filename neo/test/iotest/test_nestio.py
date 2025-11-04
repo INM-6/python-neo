@@ -711,7 +711,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             # Cause all warnings to always be triggered.
             warnings.simplefilter("always")
-            self.testIO.get_columns(condition_column=0)
+            self.testIO.get_columns(condition_column_ids=0)
             # Verify number and content of warning
             assert len(w) == 1
             assert "no condition" in str(w[-1].message)
@@ -723,7 +723,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             self.testIO.get_columns(condition=lambda x: True)
 
-        self.assertTrue("no condition_column ID provided" in str(context.exception))
+        self.assertTrue("but condition_column is not provided" in str(context.exception))
 
     def test_correct_condition_selection(self):
         """
@@ -735,7 +735,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         def condition_function(x):
             return x > 10
 
-        result = self.testIO.get_columns(condition=condition_function, condition_column=0)
+        result = self.testIO.get_columns(condition=condition_function, condition_column_ids=0)
         selected_ids = np.where(condition_function(self.testIO.data[:, condition_column]))[0]
         expected = self.testIO.data[selected_ids, :]
 
@@ -745,13 +745,41 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
 
     def test_sorting(self):
         """
-        Test if presorting of columns work properly.
+        Test if the sorting of columns works properly.
         """
-        result = self.testIO.get_columns(sorting_columns=0)
 
-        assert len(result) > 0
-        assert all(np.diff(result[:, 0]) >= 0)
+        # Test sorting for the first two columns of the file to correctly
+        # identify potential problems in sorting column 0.
+        for column_i in [0, 1]:
+            result = self.testIO.get_columns(sorting_column_ids=column_i)
+            assert len(result) > 0
+            assert all(np.diff(result[:, column_i]) >= 0)
 
+        # Same procedure, supplying sorting with a list
+        for column_i in [[0], [1]]:
+            result = self.testIO.get_columns(sorting_column_ids=column_i)
+            assert len(result) > 0
+            assert all(np.diff(result[:, column_i[0]]) >= 0)
+
+        # Same procedure, supplying sorting with a list of multiple columns of various priority
+        # In this list, the last column has the highest priority.
+        for column_i in [[0, 1], [1, 0], [1, 0, 2]]:
+            result = self.testIO.get_columns(sorting_column_ids=column_i)
+            assert len(result) > 0
+            assert all(np.diff(result[:, column_i[-1]]) >= 0)
+
+            # Additionally, create a checksum for the sorted and unsorted returns
+            # to ensure all rows remain intact (same row sums)
+            checksum = np.sort(np.sum(result, axis=1))
+            result_unsorted = self.testIO.get_columns()
+            checksum_unsorted = np.sort(np.sum(result_unsorted, axis=1))
+            assert np.all(checksum == checksum_unsorted)
+
+        # Same procedure, this time requesting only the highest priority column.
+        for column_i in [[0, 1], [1, 0], [1, 0, 2]]:
+            result = self.testIO.get_columns(column_ids=column_i[-1], sorting_column_ids=column_i)
+            assert len(result) > 0
+            assert all(np.diff(result[:, 0]) >= 0)
 
 if __name__ == "__main__":
     unittest.main()
