@@ -702,21 +702,36 @@ class NestIO(BaseIO):
 class ColumnIO:
     """
     Class for reading an ASCII file containing multiple columns of data.
+
+    The file may have multiple header lines, which are ignored. Header lines are identified by the first word not
+    being a digit number.
+
+    Parameters
+    ----------
+    filename: string
+        Path to columnar ASCII file to read
+
+    Keyword arguments
+    -----------------
+    dtype: np.dtype
+        Specifies the data type for the data that is read from file. By default, the IO will inspect the first line of
+        data. If it contains a '.' character, the type defaults to np.int32, otherwise it defaults to np.float32.
+
+    Other keyword arguments are passed to `numpy.loadtxt()`
+        TODO: Decide if we really want to have an automatic decision here.
+        TODO: Check if we want to have float64 or float 32 as default, as Python is 64 by default, yet, 32 is smaller. Still, 32 could cause problems
+         later on, especially when working with time series signals to be loaded.
+        TODO: Previous versions ignored `dtype` as keyword argument and overwrote it. I think it should be left to the user to supply the dtype.
     """
 
     def __init__(self, filename, **kwargs):
-        """
-        filename: string, path to ASCII file to read.
-        """
-
         self.filename = filename
 
-        # read the first line to check the data type (int or float) of the data
         f = open(self.filename)
-        line = f.readline()
-        header_size = 0
 
         # Check how many header lines the file has so they can be ignored
+        line = f.readline()
+        header_size = 0
         while line:
             if line[0].isdigit():
                 break
@@ -726,16 +741,19 @@ class ColumnIO:
 
         # Warn user when the header is removed
         if header_size > 0:
-            warnings.warn(f'Ignoring {str(header_size)} header lines.')
+            warnings.warn(f'Ignoring {header_size} header lines.')
 
-        if '.' not in line:
-            kwargs['dtype'] = np.int32
-        else:
-            kwargs['dtype'] = np.float32
+        # Unless dtype is specified, check the first line of real data to determine an optimal dtype either as int or float.
+        if 'dtype' not in kwargs:
+            if '.' not in line:
+                kwargs['dtype'] = np.int32
+            else:
+                kwargs['dtype'] = np.float32
 
         self.data = np.loadtxt(self.filename, skiprows=header_size, **kwargs)
 
-        if len(self.data.shape) == 1:
+        # Make sure data array has the data values in the first dimension, and columns are second dimension
+        if self.data.ndim == 1:
             self.data = self.data[:, np.newaxis]
 
     def get_columns(self, column_ids="all", condition=None, condition_column=None, sorting_columns=None):
