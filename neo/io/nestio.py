@@ -14,6 +14,7 @@ Aitor Morales-Gregorio, Michael Denker
 """
 
 import os.path
+import re  # Import re for regex matching
 import warnings
 from datetime import datetime
 import numpy as np
@@ -86,7 +87,7 @@ class NestIO(BaseIO):
         self.filenames = filenames
         self.target_object = target_object
 
-        self.IOs = [ColumnIO(filename, **kwargs) for filename in filenames]
+        self.IOs = [NESTColumnReader(filename, **kwargs) for filename in filenames]
 
     def __read_analogsignals(
         self,
@@ -736,12 +737,12 @@ class NestIO(BaseIO):
             id_column, time_column, **args)[0]
 
 
-class ColumnIO:
+class NESTColumnReader:
     """
-    Class for reading an ASCII file containing multiple columns of data.
+    Class for reading an NEST ASCII file containing multiple columns of data and possibly a header.
 
-    The file may have multiple header lines, which are ignored. Header lines are identified by the first word not
-    being a digit number.
+    The file may have multiple header lines, which are interpreted if they conform to NEST standards. Header lines
+    are identified as the first lines in the file where the first word in not a digit number.
 
     Parameters
     ----------
@@ -752,50 +753,90 @@ class ColumnIO:
     -----------------
     dtype: np.dtype
         Specifies the data type for the data that is read from file. By default, the IO will inspect the first line of
-        data. If it contains a '.' character, the type defaults to np.int32, otherwise it defaults to np.float32.
+        data. If it contains a '.' character, the type defaults to np.int64, otherwise it defaults to np.float64.
 
     Other keyword arguments are passed to `numpy.loadtxt()`
-        TODO: Decide if we really want to have an automatic decision here.
-        TODO: Check if we want to have float64 or float 32 as default, as Python is 64 by default, yet, 32 is smaller. Still, 32 could cause problems
-         later on, especially when working with time series signals to be loaded.
+        TODO: Decide if we really want to have an automatic decision here regarding the data type based on a period.
         TODO: Previous versions ignored `dtype` as keyword argument and overwrote it. I think it should be left to the user to supply the dtype.
     """
 
     def __init__(self, filename, **kwargs):
         self.filename = filename
 
-        f = open(self.filename)
+        # Default values for files without header
+        self.nest_version = "2.x"
+        self.backend_version = "1"
+        self.column_names = []
 
-        # Check how many header lines the file has so they can be ignored
-        line = f.readline()
+        # All lines before first data line
+        header_lines_raw = []
+        # Total count of lines to skip for np.loadtxt
         header_size = 0
-        while line:
-            if line[0].isdigit():
-                break
-            else:
-                header_size += 1
+        # The first line that starts with a digit
+        first_data_line_content = None
+
+        with open(self.filename, 'r') as f:
+            while True:
                 line = f.readline()
+                if not line:
+                    break
+                
+                stripped_line = line.strip()
 
-        # Warn user when the header is removed
-        if header_size > 0:
-            warnings.warn(f'Ignoring {header_size} header lines.')
+                if stripped_line and stripped_line[0].isdigit():
+                    # This is the first data line
+                    first_data_line_content = stripped_line
+                    break
+                else:
+                    # This is a header line or empty line
+                    header_lines_raw.append(stripped_line)
+                    header_size += 1
 
-        # Unless dtype is specified, check the first line of real data to determine an optimal dtype either as int or float.
-        if 'dtype' not in kwargs:
-            if '.' not in line:
-                kwargs['dtype'] = np.int32
-            else:
-                kwargs['dtype'] = np.float32
+            if first_data_line_content is None:
+                raise IOError("No data lines found in file.")
 
-        self.data = np.loadtxt(self.filename, skiprows=header_size, **kwargs)
+            # Filter out empty lines for strict header format checking
+            valid_parsed_header_lines = [l for l in header_lines_raw if l]
+            
+            if len(valid_parsed_header_lines) >= 3:
+                nest_match = re.match(r'# NEST version: (\d+\.\d+\.\d+)', valid_parsed_header_lines[0])
+                backend_match = re.match(r'# RecordingBackendASCII version: (\d+)', valid_parsed_header_lines[1])
+                
+                # Check for the specific header pattern: two version lines followed by column names
+                # Example:
+                # # NEST version: 3.6.0
+                # # RecordingBackendASCII version: 2
+                # sender	time_ms	I_syn_ex	I_syn_in	V_m
+                if nest_match and backend_match and not valid_parsed_header_lines[2].startswith('#'):
+                    self.nest_version = nest_match.group(1)
+                    self.backend_version = backend_match.group(1)
+                    self.column_names = valid_parsed_header_lines[2].split()
+                else:
+                    warnings.warn("Unidentified header format. Using default NEST version '2.x', "
+                                  "RecordingBackendASCII version '1', and no column names. Skipping header.")
+            elif len(valid_parsed_header_lines) > 0:
+                # Some header lines exist, but not enough for specific format
+                warnings.warn("Unidentified header format. Using default NEST version '2.x', "
+                                  "RecordingBackendASCII version '1', and no column names. Skipping header.")
 
-        # Make sure data array has the data values in the first dimension, and columns are second dimension
+            # Determine dtype if not specified in kwargs
+            if 'dtype' not in kwargs:
+                if '.' not in first_data_line_content:
+                    kwargs['dtype'] = np.int64
+                else:
+                    kwargs['dtype'] = np.float64
+
+        # Load data using numpy.loadtxt with the determined number of skipped header lines
+        try:
+            self.data = np.loadtxt(self.filename, skiprows=header_size, **kwargs)
+        except Exception as e:
+            raise ValueError(f"Error loading data from file {self.filename}: {e}")
+
+        # Ensure data array is 2-dimensional
         if self.data.ndim == 1:
             self.data = self.data[:, np.newaxis]
-
-        # Sanity check to verify output of the file is a 2 dimensional array
-        if self.data.ndim != 2:
-            ValueError("File could not be parsed correctly.")
+        elif self.data.ndim != 2:
+            raise ValueError("File could not be parsed correctly. Data is not 2-dimensional.")
 
     def get_columns(self, column_indices="all", condition=None, condition_column_index=None, sorting_column_indices=None):
         """

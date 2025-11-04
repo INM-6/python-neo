@@ -5,7 +5,7 @@ import warnings
 import unittest
 import quantities as pq
 import numpy as np
-from neo.io.nestio import ColumnIO
+from neo.io.nestio import NESTColumnReader
 from neo.io.nestio import NestIO
 from neo.test.iotest.common_io_test import BaseTestIO
 
@@ -410,7 +410,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             id_column=None,
             time_column=0,
         )
-        self.assertTrue(st.magnitude.dtype == np.int32)
+        self.assertTrue(st.magnitude.dtype == np.int64)
         seg = r.read_segment(
             gid_list=[None],
             t_start=400.0 * pq.ms,
@@ -421,7 +421,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=0,
         )
         sts = seg.spiketrains
-        self.assertTrue(all([st.magnitude.dtype == np.int32 for st in sts]))
+        self.assertTrue(all([st.magnitude.dtype == np.int64 for st in sts]))
 
         filename = self.get_local_path("nest/0gid-1time_in_steps-1258-0.gdf")
         r = NestIO(filenames=filename)
@@ -434,7 +434,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             id_column=0,
             time_column=1,
         )
-        self.assertTrue(st.magnitude.dtype == np.int32)
+        self.assertTrue(st.magnitude.dtype == np.int64)
         seg = r.read_segment(
             gid_list=[1],
             t_start=400.0 * pq.ms,
@@ -445,7 +445,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
         sts = seg.spiketrains
-        self.assertTrue(all([st.magnitude.dtype == np.int32 for st in sts]))
+        self.assertTrue(all([st.magnitude.dtype == np.int64 for st in sts]))
 
     def test_read_float(self):
         """
@@ -457,12 +457,12 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         st = r.read_spiketrain(neuron_id=1, t_start=400. * pq.ms,
                                t_stop=500. * pq.ms,
                                lazy=False, id_column=0, time_column=1)
-        self.assertTrue(st.magnitude.dtype == np.float32)
+        self.assertTrue(st.magnitude.dtype == np.float64)
         seg = r.read_segment(gid_list=[1], t_start=400. * pq.ms,
                              t_stop=500. * pq.ms,
                              lazy=False, id_column_gdf=0, time_column_gdf=1)
         sts = seg.spiketrains
-        self.assertTrue(all([s.magnitude.dtype == np.float32 for s in sts]))
+        self.assertTrue(all([s.magnitude.dtype == np.float64 for s in sts]))
 
     def test_values(self):
         """
@@ -480,7 +480,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
 
-        dat = np.loadtxt(filename, dtype=np.float32)
+        dat = np.loadtxt(filename, dtype=np.float64)
         target_data = dat[:, 1][np.where(dat[:, 0] == id_to_test)]
 
         st = seg.spiketrains[0]
@@ -720,7 +720,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
     def setUp(self):
         BaseTestIO.setUp(self)
         filename = self.get_local_path("nest/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
-        self.testIO = ColumnIO(filename=filename)
+        self.testIO = NESTColumnReader(filename=filename)
 
     def test_no_arguments(self):
         """
