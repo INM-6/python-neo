@@ -352,6 +352,48 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
 
+        filename = self.get_local_path("nest/precise_spikes_times-19-0.dat")
+        r = NestIO(filenames=filename)
+        r.read_spiketrain(
+            neuron_id=1,
+            t_start=400.0 * pq.ms,
+            t_stop=500.0 * pq.ms,
+            time_unit=pq.CompoundUnit("0.1*ms"),
+            lazy=False,
+            id_column=0,
+            time_column=1,
+        )
+        r.read_segment(
+            gid_list=[1],
+            t_start=400.0 * pq.ms,
+            t_stop=500.0 * pq.ms,
+            time_unit=pq.CompoundUnit("0.1*ms"),
+            lazy=False,
+            id_column_gdf=0,
+            time_column_gdf=1,
+        )
+
+        filename = self.get_local_path("nest/precise_spikes_steps-20-0.dat")
+        r = NestIO(filenames=filename)
+        r.read_spiketrain(
+            neuron_id=1,
+            t_start=400.0 * pq.ms,
+            t_stop=500.0 * pq.ms,
+            time_unit=pq.CompoundUnit("0.1*ms"),
+            lazy=False,
+            id_column=0,
+            time_column=1,
+        )
+        r.read_segment(
+            gid_list=[1],
+            t_start=400.0 * pq.ms,
+            t_stop=500.0 * pq.ms,
+            time_unit=pq.CompoundUnit("0.1*ms"),
+            lazy=False,
+            id_column_gdf=0,
+            time_column_gdf=1,
+        )
+
     def test_read_integer(self):
         """
         Tests if spike times are actually stored as integers if they are stored
