@@ -702,8 +702,7 @@ class NestIO(BaseIO):
         if neuron_id is None and id_column is not None:
             raise ValueError(f"No neuron ID specified but column for IDs is defined as column index {id_column}.")
 
-        a = self.__read_spiketrains([neuron_id], time_unit, t_start, t_stop, id_column, time_column, **args)
-        return a[0]
+        return self.__read_spiketrains([neuron_id], time_unit, t_start, t_stop, id_column, time_column, **args)[0]
 
 
 class ColumnIO:
