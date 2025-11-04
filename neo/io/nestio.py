@@ -65,14 +65,14 @@ class NestIO(BaseIO):
         """
         Parameters
         ----------
-            filenames: string or list of strings, default=None
-                The filename or list of filenames to load.
-            target_object : string or list of strings, default='SpikeTrain'
-                The type of neo object that should be read out from the input.
-                Options are: 'SpikeTrain', 'AnalogSignal'
-            kwargs : dict like
-                keyword arguments that will be passed to `numpy.loadtxt` see
-                https://numpy.org/devdocs/reference/generated/numpy.loadtxt.html
+        filenames: string or list of strings, default=None
+            The filename or list of filenames to load.
+        target_object : string or list of strings, default='SpikeTrain'
+            The type of neo object that should be read out from the input.
+            Options are: 'SpikeTrain', 'AnalogSignal'
+        kwargs : dict like
+            keyword arguments that will be passed to `numpy.loadtxt` see
+            https://numpy.org/devdocs/reference/generated/numpy.loadtxt.html
         """
         if target_object not in self.supported_target_objects:
             raise ValueError(f'{target_object} is not a valid object type. '
@@ -201,16 +201,45 @@ class NestIO(BaseIO):
                                 sampling_period)
         return analogsignal_list
 
-    def __read_spiketrains(self, gdf_id_list, time_unit, t_start, t_stop, id_column, time_column, **args):
+    def __read_spiketrains(self, neuron_id_list, time_unit, t_start, t_stop, id_column, time_column, **args):
         """
         Internal function for reading multiple spiketrains at once.
         This function is called by read_spiketrain() and read_segment().
+
+        Arguments
+        ----------
+        neuron_id_list : list of int
+            The IDs of the returned SpikeTrains. If None is specified, all
+            Default: None
+        time_unit : Quantity (time)
+            The time unit of recorded time stamps.
+            Default: quantities.ms
+        t_start : Quantity (time)
+            Start time of SpikeTrain. t_start must be specified.
+            Default: None
+        t_stop : Quantity (time)
+            Stop time of SpikeTrain. t_stop must be specified.
+            Default: None
+        id_column : int
+            Column index of neuron IDs.
+            Default: 0
+        time_column : int
+            Column index of time stamps.
+            Default: 1
+        lazy : bool, optional, default: False
+
+        Returns
+        -------
+        spiketrain : list of SpikeTrains
+            The requested SpikeTrain object with an annotation 'id'
+            corresponding to the gdf_id parameter.
+
         """
         # assert that the file contains spike times
         if time_column is None:
             raise ValueError("Time column is None. No spike times to " "be read in.")
 
-        gdf_id_list, id_column = self._check_input_gids(gdf_id_list, id_column)
+        neuron_id_list, id_column = self._check_input_gids(neuron_id_list, id_column)
 
         t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=True)
 
@@ -226,7 +255,7 @@ class NestIO(BaseIO):
                 column_ids[i] = -1
 
         (condition, condition_column, sorting_column) = self._get_conditions_and_sorting(
-            id_column, time_column, gdf_id_list, t_start, t_stop
+            id_column, time_column, neuron_id_list, t_start, t_stop
         )
 
         spiketrain_list = SpikeTrainList()
@@ -241,10 +270,10 @@ class NestIO(BaseIO):
             # create a list of SpikeTrains for all neuron IDs in gdf_id_list
             # assign spike times to neuron IDs if id_column is given
             if id_column is not None:
-                if (gdf_id_list == []) and id_column is not None:
+                if (neuron_id_list == []) and id_column is not None:
                     current_file_ids = np.unique(data[:, id_column])
                 else:
-                    current_file_ids = gdf_id_list
+                    current_file_ids = neuron_id_list
 
                 for nid in current_file_ids:
                     selected_ids = self._get_selected_ids(nid, id_column,
@@ -702,7 +731,9 @@ class NestIO(BaseIO):
         if neuron_id is None and id_column is not None:
             raise ValueError(f"No neuron ID specified but column for IDs is defined as column index {id_column}.")
 
-        return self.__read_spiketrains([neuron_id], time_unit, t_start, t_stop, id_column, time_column, **args)[0]
+        return self.__read_spiketrains(
+            [neuron_id], time_unit, t_start, t_stop,
+            id_column, time_column, **args)[0]
 
 
 class ColumnIO:
