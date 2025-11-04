@@ -150,8 +150,8 @@ class NestIO(BaseIO):
             data = col.get_columns(
                 column_ids=column_ids,
                 condition=condition,
-                condition_column=condition_column,
-                sorting_columns=sorting_column)
+                condition_column_ids=condition_column,
+                sorting_column_ids=sorting_column)
 
             sampling_period = self._check_input_sampling_period(
                                   sampling_period,
@@ -234,8 +234,8 @@ class NestIO(BaseIO):
             data = col.get_columns(
                 column_ids=column_ids,
                 condition=condition,
-                condition_column=condition_column,
-                sorting_columns=sorting_column)
+                condition_column_ids=condition_column,
+                sorting_column_ids=sorting_column)
             
             # create a list of SpikeTrains for all neuron IDs in gdf_id_list
             # assign spike times to neuron IDs if id_column is given
@@ -756,65 +756,95 @@ class ColumnIO:
         if self.data.ndim == 1:
             self.data = self.data[:, np.newaxis]
 
-    def get_columns(self, column_ids="all", condition=None, condition_column=None, sorting_columns=None):
+        # Sanity check to verify output of the file is a 2 dimensional array
+        if self.data.ndim != 2:
+            ValueError("File could not be parsed correctly.")
+
+    def get_columns(self, column_ids="all", condition=None, condition_column_ids=None, sorting_column_ids=None):
         """
-        column_ids : 'all' or list of int, the ids of columns to
-                    extract.
-        condition : None or function, which is applied to each row to evaluate
-                    if it should be included in the result.
-                    Needs to return a bool value.
-        condition_column : int, id of the column on which the condition
-                    function is applied to
-        sorting_columns : int or list of int, column ids to sort by.
-                    List entries have to be ordered by increasing sorting
-                    priority!
+        Returns data from specific columns of the text file, sorted and filtered by user-defined conditions.
+
+        Parameters
+        ----------
+        column_ids : int, list of int, string
+            IDs of columns to extract, where 0 is the first column. If "all" or an empty list or None is specified,
+            all columns are returned.
+            Default: "all"
+        condition : None, function
+            If a function is supplied, it is applied to each row to evaluate if it should be included in the result.
+            The function accepts as single argument the column data, i.e., an array with the number of samples (rows)
+            in the file. The function needs to return a bool value. If None, all rows are returned.
+            Default: None
+        condition_column_ids : int
+            ID of the column on which the condition function is applied to. If None and a condition function is
+            specified, an error is raised.
+            Default: None
+        sorting_column_ids : int or list of int,
+            Column IDs to sort output by. List entries have to be ordered by increasing sorting priority! If None, no
+            sorting is applied.
+            Default: None
 
         Returns
         -------
         numpy array containing the requested data.
         """
 
-        if column_ids == [] or column_ids == "all":
-            column_ids = range(self.data.shape[-1])
+        num_available_columns = self.data.shape[1]
 
+        # If all columns are requested, identify the IDs of all existing columns
+        if not column_ids or column_ids == "all":
+            column_ids = range(num_available_columns)
+
+        # Simplifies the selection of a single column by accepting an integer as input
         if isinstance(column_ids, (int, float)):
             column_ids = [column_ids]
-        column_ids = np.array(column_ids)
 
-        if column_ids is not None:
-            if max(column_ids) > len(self.data) - 1:
-                raise ValueError('Can not load column ID %i. File contains '
-                                 'only %i columns' % (max(column_ids),
-                                                      len(self.data)))
+        # Convert column IDs to numpy array of integers; float IDs are truncated
+        column_ids = np.array(column_ids, dtype=np.int32)
 
-        if sorting_columns is not None:
-            if isinstance(sorting_columns, int):
-                sorting_columns = [sorting_columns]
-            if max(sorting_columns) >= self.data.shape[1]:
+        # Test if requested columns exist in the file
+        if max(column_ids) > num_available_columns - 1:
+            raise ValueError(
+                f"Cannot load column ID {max(column_ids)}. File contains "
+                f"only {num_available_columns} columns."
+            )
+
+        if sorting_column_ids is not None:
+            if isinstance(sorting_column_ids, int):
+                sorting_column_ids = [sorting_column_ids]
+
+            # Convert sorting column IDs to numpy array of integers
+            sorting_column_ids = np.array(sorting_column_ids, dtype=np.int32)
+
+            if max(sorting_column_ids) >= num_available_columns:
                 raise ValueError(
-                    f"Can not sort by column ID {max(sorting_columns)}. File contains "
-                    f"only {self.data.shape[1]} columns"
+                    f"Cannot sort by column ID {max(sorting_column_ids)}. File contains "
+                    f"only {num_available_columns} columns."
                 )
 
-        # Starting with whole dataset being selected for return
+        # Start with whole dataset selected for return
         selected_data = self.data
 
         # Apply filter condition to rows
-        if condition and (condition_column is None):
-            raise ValueError("Filter condition provided, but no " "condition_column ID provided")
-        elif (condition_column is not None) and (condition is None):
-            warnings.warn("Condition column ID provided, but no condition " "given. No filtering will be performed.")
-
-        elif (condition is not None) and (condition_column is not None):
+        if condition and (condition_column_ids is None):
+            raise ValueError(
+                "Filter condition is provided, but condition_column is not provided.")
+        elif (condition_column_ids is not None) and (condition is None):
+            warnings.warn(
+                "Condition column ID provided, but no condition given. All rows will be returned."
+            )
+        elif (condition is not None) and (condition_column_ids is not None):
             condition_function = np.vectorize(condition)
-            mask = condition_function(selected_data[:, condition_column]).astype(bool)
+            mask = condition_function(selected_data[:, condition_column_ids]).astype(bool)
             selected_data = selected_data[mask, :]
 
         # Apply sorting if requested
-        if sorting_columns is not None:
-            values_to_sort = selected_data[:, sorting_columns].T
-            ordered_ids = np.lexsort(tuple(values_to_sort[i] for i in range(len(values_to_sort))))
-            selected_data = selected_data[ordered_ids, :]
+        if sorting_column_ids is not None:
+            # Iterative sorting from lowest to highest priority
+            # kind='stable' ensures that when two elements have equal values in the current column,
+            # their relative order is preserved so that columns remain intact and prior sorting is preseved.
+            for col in sorting_column_ids:
+                selected_data = selected_data[np.argsort(selected_data[:, col], kind='stable')]
 
         # Select only requested columns
         selected_data = selected_data[:, column_ids]
