@@ -445,7 +445,7 @@ class NestIO(BaseIO):
         Returns
         list of selected gids
         """
-        gids = np.array([0, data.shape[id_column]])
+        gids = np.array([0, data.shape[0]])
         if id_column is not None:
             gids = np.array([np.searchsorted(data[:, id_column], gid, side='left'),
                              np.searchsorted(data[:, id_column], gid, side='right')])
