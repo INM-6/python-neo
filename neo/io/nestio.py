@@ -1119,21 +1119,20 @@ class NESTColumnReader:
                 
                 stripped_line = line.strip()
 
-                if not isinstance(stripped_line, list):
-                    stripped_line = [stripped_line]
-
                 # Check if the first entry is a decimal (cannot use isdigit()
                 # because it fails for negative numbers)
                 try:
-                    _ = float(stripped_line[0])
+                    _ = float(stripped_line.split()[0])
 
                     # No error means this is the first data line
-                    first_data_line_content = stripped_line[0]
-                    break
+                    first_data_line_content = stripped_line
                 except ValueError:
                     # This is a header line or empty line
                     header_lines_raw.append(stripped_line)
                     header_size += 1
+
+                if first_data_line_content is not None:
+                    break
 
             if first_data_line_content is None:
                 raise IOError("No data lines found in file.")
