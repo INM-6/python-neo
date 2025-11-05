@@ -89,10 +89,11 @@ class NestIO(BaseIO):
 
         self.IOs = [NESTColumnReader(filename, **kwargs) for filename in filenames]
 
+
     def __read_analogsignals(
-        self, id_list, time_unit, t_start, t_stop,
-        sampling_period, id_column, time_column,
-        value_columns, value_types, value_units, **args
+            self, id_list, time_unit, t_start, t_stop,
+            sampling_period, id_column, time_column,
+            value_columns, value_types, value_units, **args
     ):
         """
         Internal function for reading multiple analog signals at once.
@@ -119,49 +120,166 @@ class NestIO(BaseIO):
             column index for NEST 2.x files.
         """
 
-        # checking gid input parameters
-        id_list, id_column = self._check_input_ids(id_list, id_column)
-        # checking time input parameters
-        t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
+        analogsignal_list = []
 
-        # checking value input parameters
-        (value_columns, value_types, value_units) = self._check_input_values_parameters(
-            value_columns, value_types, value_units
-        )
+        for col in self.IOs:
+            # Resolve id_column, time_column, and value_columns based on header information
+            resolved_id_column = id_column
+            resolved_time_column = time_column
+            resolved_time_offset_column = None
+            resolved_value_columns = value_columns
+            resolved_value_types = value_types
+            resolved_value_units = value_units
 
-        # defining standard column order for internal usage
-        # [id_column, time_column, value_column1, value_column2, ...]
-        column_ids = [id_column, time_column]
-        if value_columns is not None:
-            column_ids += value_columns
-        for i, cid in enumerate(column_ids):
-            if cid is None:
-                column_ids[i] = -1
+            if col.valid_nest3_file:
+                # NEST 3.x file with header
 
-        # assert that no single column is assigned twice
-        column_list = [id_column, time_column]
-        if value_columns is not None:
-            column_list += value_columns
-        column_list_no_None = [c for c in column_list if c is not None]
-        if len(set(column_list_no_None)) < len(column_list_no_None):
-            raise ValueError(
-                "One or more columns have been specified to contain "
-                "the same data. Columns were specified to {column_list_no_None}."
-                ""
+                # Skip NEST 3.x file if it does not contain a time series
+                if not col.nest3_contains_time_series:
+                    warnings.warn(
+                        f"NEST 3.x file {col.filename} does not seem to contain a time series. "
+                        "Skipping loading file as Neo AnalogSignal object."
+                    )
+                    continue
+
+                # Handle id_column (sender) for NEST 3.x files
+                if col.header_indices.get('sender') is not None:
+                    if id_column is not None:
+                        warnings.warn(
+                            f"id_column={id_column} provided, but 'sender' column found in header at index "
+                            f"{col.header_indices['sender']}. Using header information."
+                        )
+                    resolved_id_column = col.header_indices['sender']
+                elif id_column is None:
+                    # No recognized sender header, set to default for NEST 2.x
+                    # TODO: Can this actually happen given we have a valid NEST 3.x file?
+                    resolved_id_column = 0
+
+                # Handle time_column (time_ms or time_steps/time_offset) for NEST 3.x files
+                if col.header_indices.get('time_ms') is not None:
+                    # time_ms column present
+                    if time_column is not None:
+                        warnings.warn(
+                            f"time_column={time_column} provided, but 'time_ms' column found in header at index "
+                            f"{col.header_indices['time_ms']}. Using header information."
+                        )
+                    resolved_time_column = col.header_indices['time_ms']
+
+                    # Override time_unit to milliseconds
+                    if time_unit is not None and time_unit != pq.ms:
+                        warnings.warn(
+                            f"Ignoring time_unit={time_unit} because 'time_ms' column found in header."
+                        )
+                    time_unit = pq.ms
+                elif (col.header_indices.get('time_steps') is not None and
+                      col.header_indices.get('time_offset') is not None):
+                    # time_steps and time_offset columns present
+                    if time_column is not None:
+                        warnings.warn(
+                            f"time_column={time_column} provided, but 'time_steps' and 'time_offset' columns "
+                            f"found in header at indices {col.header_indices['time_steps']} and "
+                            f"{col.header_indices['time_offset']}. Using header information."
+                        )
+                    resolved_time_column = col.header_indices['time_steps']
+                    resolved_time_offset_column = col.header_indices['time_offset']
+                elif time_column is None:
+                    # No recognized time header, set to default for NEST 2.x
+                    resolved_time_column = 1
+
+                # Handle value_columns - get all columns that are not standard headers
+                if value_columns is None:
+                    # Auto-detect value columns from header
+                    standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
+                    resolved_value_columns = []
+                    for col_name in col.column_names:
+                        if col_name not in standard_headers:
+                            resolved_value_columns.append(col.header_indices[col_name])
+
+                    if not resolved_value_columns:
+                        warnings.warn(f"No value columns found in file {col.filename}.")
+                        continue
+
+                    # Set default types and units
+                    # TODO: This is still not good
+                    resolved_value_types = [col_name for col_name in col.column_names
+                                            if col_name not in standard_headers]
+                    resolved_value_units = [pq.dimensionless] * len(resolved_value_columns)
+                else:
+                    # User specified value_columns, check if they conflict with header
+                    if isinstance(value_columns, int):
+                        resolved_value_columns = [value_columns]
+                    elif isinstance(value_columns, list):
+                        resolved_value_columns = value_columns
+                    else:
+                        # Assume it's a string referring to column name
+                        if value_columns in col.header_indices:
+                            resolved_value_columns = [col.header_indices[value_columns]]
+                        else:
+                            raise ValueError(f"Column name '{value_columns}' not found in header.")
+            else:
+                # NEST 2.x file without header or unrecognized header
+                if isinstance(value_columns, list):
+                    num_available_columns = col.data.shape[1] - len(value_columns)
+                else:
+                    num_available_columns = col.data.shape[1] - 1
+
+                # TODO: These tests may be more general and could possibly go to check_ids
+
+                # Make sure user specified columns are valid
+                if ((id_column is not None) and (id_column >= num_available_columns)):
+                    raise ValueError(
+                        f"Specified ID column index {id_column} "
+                        f"is out of range for file {col.filename}."
+                    )
+
+                if ((time_column is not None) and (time_column >= num_available_columns)):
+                    raise ValueError(
+                        f"Specified time column index {time_column} "
+                        f"is out of range for file {col.filename}."
+                    )
+
+            # Check value parameters for consistency
+            (resolved_value_columns, resolved_value_types,
+             resolved_value_units) = self._check_input_values_parameters(
+                resolved_value_columns, resolved_value_types, resolved_value_units
             )
 
-        # extracting condition and sorting parameters for raw data loading
-        (condition, condition_column,
-         sorting_column) = self._get_conditions_and_sorting(id_column,
-                                                            time_column,
-                                                            id_list,
-                                                            t_start,
-                                                            t_stop)
+            # Check input IDs and times
+            id_list, resolved_id_column = self._check_input_ids(id_list, resolved_id_column)
+            t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
 
-        analogsignal_list = []
-        for col in self.IOs:
+            print(resolved_id_column)
+            print(resolved_time_column)
 
-            # loading raw data columns
+            # Defining standard column order for internal usage
+            # [id_column, time_column, optional: time_offset, value_column1, value_column2, ...]
+            column_ids = [resolved_id_column, resolved_time_column]
+            if resolved_time_offset_column is not None:
+                column_ids.append(resolved_time_offset_column)
+            if resolved_value_columns is not None:
+                column_ids += resolved_value_columns
+
+            for i, cid in enumerate(column_ids):
+                if cid is None:
+                    column_ids[i] = -1
+
+            # Assert that no single column is assigned twice
+            columns = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
+            if resolved_value_columns is not None:
+                columns += resolved_value_columns
+            columns = [c for c in columns if c is not None]
+            if len(columns) != len(set(columns)):
+                raise ValueError("One or more columns have been specified to contain the same data.")
+
+            # Extracting condition and sorting parameters for raw data loading
+            (condition, condition_column,
+             sorting_column) = self._get_conditions_and_sorting(resolved_id_column,
+                                                                resolved_time_column,
+                                                                id_list,
+                                                                t_start,
+                                                                t_stop)
+
+            # Loading raw data columns
             data = col.get_columns(
                 column_indices=column_ids,
                 condition=condition,
@@ -169,50 +287,61 @@ class NestIO(BaseIO):
                 sorting_column_indices=sorting_column)
 
             sampling_period = self._check_input_sampling_period(
-                                  sampling_period,
-                                  time_column,
-                                  time_unit,
-                                  data)
+                sampling_period,
+                1,  # Always use index 1 for time column in data array
+                time_unit,
+                data)
 
-            # extracting complete gid list for anasig generation
-            if not id_list and id_column is not None:
-                current_gid_list = np.unique(data[:, id_column])
+            # Extracting complete ID list for analog signal generation
+            if not id_list and resolved_id_column is not None:
+                current_id_list = np.unique(data[:, 0])
             else:
-                current_gid_list = id_list
+                current_id_list = id_list
 
-            # generate analogsignals for each neuron ID
-            for i in current_gid_list:
+            # Generate analogsignals for each sender ID
+            for sender_id in current_id_list:
                 selected_ids = self._get_selected_ids(
-                    i, id_column, time_column, t_start, t_stop, time_unit,
-                    data)
+                    sender_id, 0, 1,
+                    t_start, t_stop, time_unit, data)
 
-                # extract starting time of analogsignal
-                if (time_column is not None) and data.size:
-                    anasig_start_time = data[selected_ids[0], 1] * time_unit
+                # Extract times for this ID
+                times = data[selected_ids[0]:selected_ids[1], 1]
+
+                # Handle time_steps and time_offset case
+                offset_index = 2 if resolved_time_offset_column is not None else None
+                if offset_index is not None and data.shape[1] > offset_index:
+                    time_offset = data[selected_ids[0]:selected_ids[1], offset_index]
+                    times = times - time_offset
+                    value_start_index = 3
                 else:
-                    # set t_start equal to sampling_period because NEST starts
-                    #  recording only after 1 sampling_period
+                    value_start_index = 2
+
+                # Extract starting time of analogsignal
+                if len(times) > 0:
+                    anasig_start_time = times[0] * time_unit
+                else:
+                    # Set t_start equal to sampling_period because NEST starts
+                    # recording only after 1 sampling_period
                     anasig_start_time = 1. * sampling_period
 
-                if value_columns is not None:
-                    # create one analogsignal per value column requested
-                    for v_id, value_column in enumerate(value_columns):
-                        signal = data[
-                            selected_ids[0]:selected_ids[1], value_column]
+                if resolved_value_columns is not None:
+                    # Create one analogsignal per value column requested
+                    for v_id, value_column_index in enumerate(range(value_start_index,
+                                                                    value_start_index + len(resolved_value_columns))):
+                        signal = data[selected_ids[0]:selected_ids[1], value_column_index]
 
-                        # create AnalogSignal objects and annotate them with
-                        #  the neuron ID
+                        # Create AnalogSignal objects and annotate them with the neuron ID
                         analogsignal_list.append(AnalogSignal(
-                            signal * value_units[v_id],
+                            signal * resolved_value_units[v_id],
                             sampling_period=sampling_period,
                             t_start=anasig_start_time,
-                            id=i,
+                            id=sender_id,
                             file_origin=col.filename,
-                            type=value_types[v_id]))
-                        # check for correct length of analogsignal
+                            type=resolved_value_types[v_id]))
+
+                        # Check for correct length of analogsignal
                         assert (analogsignal_list[-1].t_stop
-                                == anasig_start_time + len(signal) *
-                                sampling_period)
+                                == anasig_start_time + len(signal) * sampling_period)
         return analogsignal_list
 
     def __read_spiketrains(self,
@@ -247,16 +376,16 @@ class NestIO(BaseIO):
             resolved_time_column = time_column
             resolved_time_offset_column = None
 
-            # Skip NEST 3.x file if it does not contain spike times
-            if col.nest3_contains_time_series:
-                warnings.warn(
-                    f"NEST 3.x file {col.filename} seems to contain a time series. "
-                     "Skipping loading file as Neo SpikeTrain object."
-                )
-                break
-
             if col.valid_nest3_file:
                 # NEST 3.x file with minimum header for spike trains
+
+                # Skip NEST 3.x file if it does not contain spike times
+                if col.nest3_contains_time_series:
+                    warnings.warn(
+                        f"NEST 3.x file {col.filename} seems to contain a time series. "
+                        "Skipping loading file as Neo SpikeTrain object."
+                    )
+                    continue
 
                 # Handle id_column (sender) for NEST 3.x files
                 if col.header_indices.get('sender') is not None:
@@ -268,6 +397,7 @@ class NestIO(BaseIO):
                     resolved_id_column = col.header_indices['sender']
                 elif id_column is None:
                     # No recognized sender header, set to default for NEST 2.x
+                    # TODO: Can this actually happen given we have a valid NEST 3.x file?
                     resolved_id_column = 0
 
                 # Handle time_column (time_ms or time_steps/time_offset) for NEST 3.x files
@@ -281,9 +411,9 @@ class NestIO(BaseIO):
                     resolved_time_column = col.header_indices['time_ms']
 
                     # Override time_unit to milliseconds
-                    if time_unit is not None and time_unit is not pq.ms:
+                    if time_unit is not None and time_unit != pq.ms:
                         warnings.warn(
-                            "Ignoring time_unit={time_unit} because 'time_ms' column found in header. "
+                            f"Ignoring time_unit={time_unit} because 'time_ms' column found in header. "
                         )
                     time_unit = pq.ms
                 elif (col.header_indices.get('time_steps') is not None and
@@ -305,13 +435,13 @@ class NestIO(BaseIO):
                 num_available_columns = col.data.shape[1]
 
                 # Make sure user specified columns are valid
-                if ((id_column is not None) and (id_column > num_available_columns)):
+                if ((id_column is not None) and (id_column >= num_available_columns)):
                     raise ValueError(
                         f"Specified ID column index {id_column} "
                         f"is out of range for file {col.filename}."
                     )
 
-                if ((time_column is not None) and (time_column > num_available_columns)):
+                if ((time_column is not None) and (time_column >= num_available_columns)):
                     raise ValueError(
                         f"Specified time column index {time_column} "
                         f"is out of range for file {col.filename}."
@@ -376,11 +506,13 @@ class NestIO(BaseIO):
                 else:
                     current_file_ids = id_list
 
+                # Generate spike trains for each sender ID
                 for nid in current_file_ids:
-                    selected_ids = self._get_selected_ids(nid, 0,
-                                                          1, t_start,
-                                                          t_stop, time_unit,
-                                                          data)
+                    selected_ids = self._get_selected_ids(
+                        nid, 0, 1,
+                        t_start,t_stop, time_unit,data)
+
+                    # Extract times for this ID
                     times = data[selected_ids[0]:selected_ids[1], 1]
 
                     # Handle time_steps and time_offset case
@@ -750,7 +882,7 @@ class NestIO(BaseIO):
 
     def read_analogsignal(
         self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
-        sampling_period=None, id_column=None, time_column=None,
+        sampling_period=None, id_column=0, time_column=1,
         value_column=None, value_type=np.float64, value_unit=None,
         lazy=False,  **args
     ):
@@ -811,12 +943,14 @@ class NestIO(BaseIO):
             `time_ms`), and a warning is issued indicating a non-valid NEST data
             file.
             Default: None
-        value_column : int or string or None
-            Column index of signal values. NEST version 2.x, this is an integer
-            specifying the index of the column. For NEST version 3.x, the column
-            can either bei specified by an integer, or can be is identified by
-            a string matching the column header(s) in the file. If None, the
-            first column that is neither a time or a sender ID is used.
+        value_column : int or list of int or string or list of string or None
+            Column index or indices of signal(s), i.e., column(s) values to
+            read. NEST version 2.x, this is an integer or list of integers
+            specifying the index/indices of the column. For NEST version 3.x,
+            the column can either bei specified by an integer(s), or can be
+            identified by string(s) matching the column header(s) in the file.
+            If None, the all columns that are neither a time or a sender ID are
+            read.
             Default: None
         value_type : np.dtype
             Default: np.float64
@@ -985,11 +1119,18 @@ class NESTColumnReader:
                 
                 stripped_line = line.strip()
 
-                if stripped_line and stripped_line[0].isdigit():
-                    # This is the first data line
-                    first_data_line_content = stripped_line
+                if not isinstance(stripped_line, list):
+                    stripped_line = [stripped_line]
+
+                # Check if the first entry is a decimal (cannot use isdigit()
+                # because it fails for negative numbers)
+                try:
+                    _ = float(stripped_line[0])
+
+                    # No error means this is the first data line
+                    first_data_line_content = stripped_line[0]
                     break
-                else:
+                except ValueError:
                     # This is a header line or empty line
                     header_lines_raw.append(stripped_line)
                     header_size += 1
