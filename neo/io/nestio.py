@@ -236,52 +236,128 @@ class NestIO(BaseIO):
             corresponding to the gdf_id parameter.
 
         """
-        # assert that the file contains spike times
-        if time_column is None:
-            raise ValueError("Time column is None. No spike times to " "be read in.")
-
-        neuron_id_list, id_column = self._check_input_gids(neuron_id_list, id_column)
-
-        t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=True)
-
-        # assert that no single column is assigned twice
-        if id_column == time_column:
-            raise ValueError("One or more columns have been specified to " "contain the same data.")
-
-        # defining standard column order for internal usage
-        # [id_column, time_column, value_column1, value_column2, ...]
-        column_ids = [id_column, time_column]
-        for i, cid in enumerate(column_ids):
-            if cid is None:
-                column_ids[i] = -1
-
-        (condition, condition_column, sorting_column) = self._get_conditions_and_sorting(
-            id_column, time_column, neuron_id_list, t_start, t_stop
-        )
-
         spiketrain_list = SpikeTrainList()
+
         for col in self.IOs:
+            # Resolve id_column and time_column based on header information
+            resolved_id_column = id_column
+            resolved_time_column = time_column
+            resolved_time_offset_column = None
+
+            # Skip file if it does not contain spike times
+            if col.nest3_contains_time_series:
+                warnings.warn(
+                    f"NEST 3.x file {col.filename} seems to contain a time series. "
+                     "Skipping loading file as Neo SpikeTrain object."
+                )
+                break
+
+            if col.valid_nest3_file:
+                # NEST 3.x file with minimum header for spike trains
+
+                # Handle id_column (sender) for NEST 3.x files
+                if col.header_indices.get('sender') is not None:
+                    if id_column is not None:
+                        warnings.warn(
+                            f"id_column={id_column} provided, but 'sender' column found in header at index "
+                            f"{col.header_indices['sender']}. Using header information."
+                        )
+                    resolved_id_column = col.header_indices['sender']
+                elif id_column is None:
+                    # No recognized sender header, set to default for NEST 2.x
+                    resolved_id_column = 0
+
+                # Handle time_column (time_ms or time_steps/time_offset) for NEST 3.x files
+                if col.header_indices.get('time_ms') is not None:
+                    # time_ms column present
+                    if time_column is not None:
+                        warnings.warn(
+                            f"time_column={time_column} provided, but 'time_ms' column found in header at index "
+                            f"{col.header_indices['time_ms']}. Using header information."
+                        )
+                    resolved_time_column = col.header_indices['time_ms']
+
+                    # Override time_unit to milliseconds
+                    if time_unit is not None and time_unit is not pq.ms:
+                        warnings.warn(
+                            "Ignoring time_unit={time_unit} because 'time_ms' column found in header. "
+                        )
+                    time_unit = pq.ms
+                elif (col.header_indices.get('time_steps') is not None and
+                      col.header_indices.get('time_offset') is not None):
+                    # time_steps and time_offset columns present
+                    if time_column is not None:
+                        warnings.warn(
+                            f"time_column={time_column} provided, but 'time_steps' and 'time_offset' columns "
+                            f"found in header at indices {col.header_indices['time_steps']} and "
+                            f"{col.header_indices['time_offset']}. Using header information."
+                        )
+                    resolved_time_column = col.header_indices['time_steps']
+                    resolved_time_offset_column = col.header_indices['time_offset']
+                elif time_column is None:
+                    # No recognized time header, set to default for NEST 2.x
+                    resolved_time_column = 1
+            else:
+                # NEST 2.x file without header or unrecognized header
+                if id_column is None:
+                    resolved_id_column = 0
+                if time_column is None:
+                    resolved_time_column = 1
+
+            # assert that the file contains spike times
+            if resolved_time_column is None:
+                raise ValueError("Time column is None. No spike times to be read in.")
+
+            neuron_id_list, resolved_id_column = self._check_input_gids(neuron_id_list, resolved_id_column)
+
+            t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=True)
+
+            # assert that no single column is assigned twice
+            if resolved_id_column == resolved_time_column:
+                raise ValueError("One or more columns have been specified to contain the same data.")
+
+            # defining standard column order for internal usage
+            # [id_column, time_column, value_column1, value_column2, ...]
+            column_ids = [resolved_id_column, resolved_time_column]
+            if resolved_time_offset_column is not None:
+                column_ids.append(resolved_time_offset_column)
+
+            for i, cid in enumerate(column_ids):
+                if cid is None:
+                    column_ids[i] = -1
+
+            (condition, condition_column, sorting_column) = self._get_conditions_and_sorting(
+                resolved_id_column, resolved_time_column, neuron_id_list, t_start, t_stop
+            )
 
             data = col.get_columns(
                 column_indices=column_ids,
                 condition=condition,
                 condition_column_index=condition_column,
                 sorting_column_indices=sorting_column)
-            
+
             # create a list of SpikeTrains for all neuron IDs in gdf_id_list
             # assign spike times to neuron IDs if id_column is given
-            if id_column is not None:
-                if (neuron_id_list == []) and id_column is not None:
-                    current_file_ids = np.unique(data[:, id_column])
+            if resolved_id_column is not None:
+                if (neuron_id_list == []) and resolved_id_column is not None:
+                    current_file_ids = np.unique(data[:, 0])
                 else:
                     current_file_ids = neuron_id_list
 
                 for nid in current_file_ids:
-                    selected_ids = self._get_selected_ids(nid, id_column,
-                                                          time_column, t_start,
+                    selected_ids = self._get_selected_ids(nid, 0,
+                                                          1, t_start,
                                                           t_stop, time_unit,
                                                           data)
-                    times = data[selected_ids[0]:selected_ids[1], time_column]
+                    times = data[selected_ids[0]:selected_ids[1], 1]
+
+                    # Handle time_steps and time_offset case
+                    if resolved_time_offset_column is not None and data.shape[1] > 2:
+                        time_offset = data[selected_ids[0]:selected_ids[1], 2]
+                        times = times * time_unit - time_offset * time_unit
+                    else:
+                        times = times * time_unit
+
                     spiketrain_list.append(SpikeTrain(times, units=time_unit,
                                                       t_start=t_start,
                                                       t_stop=t_stop,
@@ -292,13 +368,21 @@ class NestIO(BaseIO):
             # if id_column is not given, all spike times are collected in one
             #  spike train with id=None
             else:
-                train = data[:, time_column]
-                spiketrain_list.append(SpikeTrain(train, units=time_unit,
-                                                   t_start=t_start,
-                                                   t_stop=t_stop,
-                                                   id=None,
-                                                   file_origin=col.filename,
-                                                   **args))
+                times = data[:, 1]
+
+                # Handle time_steps and time_offset case
+                if resolved_time_offset_column is not None and data.shape[1] > 2:
+                    time_offset = data[:, 2]
+                    times = times * time_unit - time_offset * time_unit
+                else:
+                    times = times * time_unit
+
+                spiketrain_list.append(SpikeTrain(times, units=time_unit,
+                                                  t_start=t_start,
+                                                  t_stop=t_stop,
+                                                  id=None,
+                                                  file_origin=col.filename,
+                                                  **args))
         return spiketrain_list
 
     def _check_input_times(self, t_start, t_stop, mandatory=True):
@@ -689,8 +773,8 @@ class NestIO(BaseIO):
         )[0]
 
     def read_spiketrain(
-        self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
-        id_column=None, time_column=None, lazy=False, **args
+            self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
+            id_column=None, time_column=None, lazy=False, **args
     ):
         """
         Reads a SpikeTrain with specified neuron ID from the data file.
@@ -755,10 +839,10 @@ class NestIO(BaseIO):
             NotImplementedError("Lazy loading is not implemented for NestIO.")
 
         if (not isinstance(id, int)) and id is not None:
-            raise ValueError("gdf_id has to be of type int or None.")
+            raise ValueError("ID has to be of type int or None.")
 
         if id is None and id_column is not None:
-            raise ValueError(f"No neuron ID specified but column for IDs is defined as column index {id_column}.")
+            raise ValueError(f"No ID specified but column for IDs is defined as column index {id_column}.")
 
         return self.__read_spiketrains(
             [id], time_unit, t_start, t_stop,
@@ -870,15 +954,23 @@ class NESTColumnReader:
         self.header_indices = {}
         for i, col_name in enumerate(self.column_names):
             self.header_indices[col_name] = i
-        
+
         # Add entries for the standard headers (even if not present in column_names)
         standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
         for header in standard_headers:
             if header not in self.header_indices:
                 self.header_indices[header] = None
-        
+
+        # Check if this is a NEST 3.x file, i.e., the headers
+        self.valid_nest3_file = False
+        if (self.header_indices['sender'] and
+                (self.header_indices['time_ms'] or
+                 (self.header_indices['time_steps'] and self.header_indices['time_offset']))):
+            self.valid_nest3_file = True
+
         # Determine if there are any columns besides the standard headers
-        self.contains_time_series = len(self.column_names) > len([h for h in standard_headers if h in self.column_names])
+        # For NEST 3.x, this indicates that the data must be a time series
+        self.nest3_contains_time_series = self.valid_nest3_file and (len(self.column_names) > len([h for h in standard_headers if h in self.column_names]))
 
     def get_columns(self, column_indices="all", condition=None, condition_column_index=None, sorting_column_indices=None):
         """
