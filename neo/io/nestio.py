@@ -87,7 +87,7 @@ class NestIO(BaseIO):
         self.filenames = filenames
         self.target_object = target_object
 
-        self.IOs = [NESTColumnReader(filename, **kwargs) for filename in filenames]
+        self.IOs = [NestColumnReader(filename, **kwargs) for filename in filenames]
 
 
     def __read_analogsignals(
@@ -1073,7 +1073,7 @@ class NestIO(BaseIO):
             id_column, time_column, **args)[0]
 
 
-class NESTColumnReader:
+class NestColumnReader:
     """
     Class for reading an NEST ASCII file containing multiple columns of data and possibly a header.
 

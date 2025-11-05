@@ -5,7 +5,7 @@ import warnings
 import unittest
 import quantities as pq
 import numpy as np
-from neo.io.nestio import NESTColumnReader
+from neo.io.nestio import NestColumnReader
 from neo.io.nestio import NestIO
 from neo.test.iotest.common_io_test import BaseTestIO
 
@@ -718,7 +718,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
     def setUp(self):
         BaseTestIO.setUp(self)
         filename = self.get_local_path("nest/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
-        self.testIO = NESTColumnReader(filename=filename)
+        self.testIO = NestColumnReader(filename=filename)
 
     def test_no_arguments(self):
         """
