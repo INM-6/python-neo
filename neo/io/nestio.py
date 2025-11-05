@@ -751,7 +751,7 @@ class NestIO(BaseIO):
     def read_analogsignal(
         self, id, time_unit=pq.ms, t_start=None, t_stop=None,
         sampling_period=None, id_column=None, time_column=None,
-        value_column, value_type=None, value_unit=None,
+        value_column=None, value_type=np.float64, value_unit=None,
         lazy=False,  **args
     ):
         """
@@ -809,11 +809,13 @@ class NestIO(BaseIO):
             `time_ms`), and a warning is issued indicating a non-valid NEST data
             file.
             Default: None
-        value_column : int or string
+        value_column : int or string or None
             Column index of signal values. NEST version 2.x, this is an integer
             specifying the index of the column. For NEST version 3.x, the column
             can either bei specified by an integer, or can be is identified by
-            a string matching the column header(s) in the file.
+            a string matching the column header(s) in the file. If None, the
+            first column that is neither a time or a sender ID is used.
+            Default: None
         value_type : np.dtype
             Default: np.float64
         value_unit : Quantity
@@ -821,7 +823,8 @@ class NestIO(BaseIO):
             NEST 3.x files, and otherwise set to `quantities.dimensionless`.
             Default: None
         lazy : bool
-            Lazy loading is currently not implemented for NestIO, and this value has no effect.
+            Lazy loading is currently not implemented for NestIO, and this value
+            has no effect.
             Default: False
 
         Returns
@@ -911,7 +914,8 @@ class NestIO(BaseIO):
             file.
             Default: None
         lazy : bool
-            Lazy loading is currently not implemented for NestIO, and this value has no effect.
+            Lazy loading is currently not implemented for NestIO, and this value
+            has no effect.
             Default: False
 
         Returns

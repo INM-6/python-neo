@@ -300,12 +300,13 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         """
         filename = self.get_local_path("nest/0time-1255-0.gdf")
         r = NestIO(filenames=filename)
-        r.read_spiketrain(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column=None, time_column=0)
+        r.read_spiketrain(id=None, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column=None, time_column=0)
         r.read_segment(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=None, time_column_gdf=0)
 
         filename = self.get_local_path("nest/0time_in_steps-1257-0.gdf")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
+            id=None,
             t_start=400.0 * pq.ms,
             t_stop=500.0 * pq.ms,
             time_unit=pq.CompoundUnit("0.1*ms"),
@@ -662,7 +663,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         with self.assertRaises(ValueError):
             r.read_spiketrain(id=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
         with self.assertRaises(ValueError):
-            r.read_spiketrain(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
+            r.read_spiketrain(id=None, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
 
     def test_read_segment_can_return_empty_spiketrains(self):
         """
