@@ -866,6 +866,20 @@ class NESTColumnReader:
         elif self.data.ndim != 2:
             raise ValueError("File could not be parsed correctly. Data is not 2-dimensional.")
 
+        # Create dictionary with column names and their indices
+        self.header_indices = {}
+        for i, col_name in enumerate(self.column_names):
+            self.header_indices[col_name] = i
+        
+        # Add entries for the standard headers (even if not present in column_names)
+        standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
+        for header in standard_headers:
+            if header not in self.header_indices:
+                self.header_indices[header] = None
+        
+        # Determine if there are any columns besides the standard headers
+        self.contains_time_series = len(self.column_names) > len([h for h in standard_headers if h in self.column_names])
+
     def get_columns(self, column_indices="all", condition=None, condition_column_index=None, sorting_column_indices=None):
         """
         Returns data from specific columns of the text file, sorted and filtered by user-defined conditions.
