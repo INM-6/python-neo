@@ -202,39 +202,26 @@ class NestIO(BaseIO):
                                 sampling_period)
         return analogsignal_list
 
-    def __read_spiketrains(self, neuron_id_list, time_unit, t_start, t_stop, id_column, time_column, **args):
+    def __read_spiketrains(self, id_list, time_unit, t_start, t_stop, id_column, time_column, **args):
         """
         Internal function for reading multiple spiketrains at once.
         This function is called by read_spiketrain() and read_segment().
 
-        Arguments
+        Parameters
         ----------
-        neuron_id_list : list of int
-            The IDs of the returned SpikeTrains. If None is specified, all
-            Default: None
-        time_unit : Quantity (time)
-            The time unit of recorded time stamps.
-            Default: quantities.ms
-        t_start : Quantity (time)
-            Start time of SpikeTrain. t_start must be specified.
-            Default: None
-        t_stop : Quantity (time)
-            Stop time of SpikeTrain. t_stop must be specified.
-            Default: None
-        id_column : int
-            Column index of neuron IDs.
-            Default: 0
-        time_column : int
-            Column index of time stamps.
-            Default: 1
-        lazy : bool, optional, default: False
+        id_list : list of int or None
+            The IDs of the spike trains to load. If None is specified, all
+            IDs will be read in the file if the file contains IDs. If the file
+            is a NEST 2.x file that only contains times, all spike times
+            of one file are read into a single SpikeTrain object per file.
+        Other parameters: see read_spiketrain().
 
         Returns
         -------
-        spiketrain : list of SpikeTrains
+        spiketrain : SpikeTrainList
             The requested SpikeTrain object with an annotation 'id'
-            corresponding to the gdf_id parameter.
-
+            corresponding to the sender ID. If the data comes from a NEST 2.x
+            file that only contains times, `id` is set to `None`.
         """
         spiketrain_list = SpikeTrainList()
 
@@ -244,7 +231,7 @@ class NestIO(BaseIO):
             resolved_time_column = time_column
             resolved_time_offset_column = None
 
-            # Skip file if it does not contain spike times
+            # Skip NEST 3.x file if it does not contain spike times
             if col.nest3_contains_time_series:
                 warnings.warn(
                     f"NEST 3.x file {col.filename} seems to contain a time series. "
@@ -299,35 +286,64 @@ class NestIO(BaseIO):
                     resolved_time_column = 1
             else:
                 # NEST 2.x file without header or unrecognized header
-                if id_column is None:
-                    resolved_id_column = 0
-                if time_column is None:
-                    resolved_time_column = 1
+                num_available_columns = col.data.shape[1]
 
-            # assert that the file contains spike times
-            if resolved_time_column is None:
-                raise ValueError("Time column is None. No spike times to be read in.")
+                # Make sure user specified columns are valid
+                if ((id_column is not None) and (id_column > num_available_columns)):
+                    raise ValueError(
+                        f"Specified ID column index {id_column} "
+                        f"is out of range for file {col.filename}."
+                    )
 
-            neuron_id_list, resolved_id_column = self._check_input_gids(neuron_id_list, resolved_id_column)
+                if ((time_column is not None) and (time_column > num_available_columns)):
+                    raise ValueError(
+                        f"Specified time column index {time_column} "
+                        f"is out of range for file {col.filename}."
+                    )
 
+                if num_available_columns==2:
+                    if id_column is None:
+                        resolved_id_column = 0
+                    if time_column is None:
+                        resolved_time_column = 1
+                elif num_available_columns==1:
+                    if time_column is None:
+                        resolved_time_column = 0
+                else:
+                    warnings.warn(
+                        f"NEST 2.x or otherwise unrecognized file {col.filename} "
+                        f"contains more than 2 columns. "
+                        f"Skipping loading file as Neo SpikeTrain object."
+                    )
+
+
+            # Assert that the file contains spike times -- this condition must always be true
+            assert resolved_time_column is not None
+
+            # Check validity of IDs being in the resolved ID column
+            id_list, resolved_id_column = self._check_input_gids(id_list, resolved_id_column)
+            # Check validity of start and stop times
             t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=True)
 
-            # assert that no single column is assigned twice
-            if resolved_id_column == resolved_time_column:
+            # Assert that no single column is assigned twice
+            column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
+            column_test = [c for c in column_test if c is not None]
+            if len(column_test) != len(set(column_test)):
                 raise ValueError("One or more columns have been specified to contain the same data.")
 
             # defining standard column order for internal usage
-            # [id_column, time_column, value_column1, value_column2, ...]
+            # [id_column, time_column, optional: time_offset]
             column_ids = [resolved_id_column, resolved_time_column]
             if resolved_time_offset_column is not None:
                 column_ids.append(resolved_time_offset_column)
 
+            # For NEST 2.x files, the ID column could be missing, and only a time column exists
             for i, cid in enumerate(column_ids):
                 if cid is None:
                     column_ids[i] = -1
 
             (condition, condition_column, sorting_column) = self._get_conditions_and_sorting(
-                resolved_id_column, resolved_time_column, neuron_id_list, t_start, t_stop
+                resolved_id_column, resolved_time_column, id_list, t_start, t_stop
             )
 
             data = col.get_columns(
@@ -339,10 +355,10 @@ class NestIO(BaseIO):
             # create a list of SpikeTrains for all neuron IDs in gdf_id_list
             # assign spike times to neuron IDs if id_column is given
             if resolved_id_column is not None:
-                if (neuron_id_list == []) and resolved_id_column is not None:
+                if (id_list == []) and resolved_id_column is not None:
                     current_file_ids = np.unique(data[:, 0])
                 else:
-                    current_file_ids = neuron_id_list
+                    current_file_ids = id_list
 
                 for nid in current_file_ids:
                     selected_ids = self._get_selected_ids(nid, 0,
@@ -354,9 +370,9 @@ class NestIO(BaseIO):
                     # Handle time_steps and time_offset case
                     if resolved_time_offset_column is not None and data.shape[1] > 2:
                         time_offset = data[selected_ids[0]:selected_ids[1], 2]
-                        times = times * time_unit - time_offset * time_unit
+                        times = times - time_offset
                     else:
-                        times = times * time_unit
+                        times = times
 
                     spiketrain_list.append(SpikeTrain(times, units=time_unit,
                                                       t_start=t_start,
@@ -373,9 +389,9 @@ class NestIO(BaseIO):
                 # Handle time_steps and time_offset case
                 if resolved_time_offset_column is not None and data.shape[1] > 2:
                     time_offset = data[:, 2]
-                    times = times * time_unit - time_offset * time_unit
+                    times = times - time_offset
                 else:
-                    times = times * time_unit
+                    times = times
 
                 spiketrain_list.append(SpikeTrain(times, units=time_unit,
                                                   t_start=t_start,
@@ -453,7 +469,7 @@ class NestIO(BaseIO):
 
         return value_columns, value_types, value_units
 
-    def _check_input_gids(self, gid_list, id_column):
+    def _check_input_gids(self, id_list, id_column):
         """
         Checks gid values and column for consistency.
 
@@ -463,10 +479,10 @@ class NestIO(BaseIO):
         Returns
         adjusted list of [gid_list, id_column].
         """
-        if gid_list is None:
-            gid_list = [gid_list]
+        if id_list is None:
+            id_list = [id_list]
 
-        if None in gid_list and id_column is not None:
+        if None in id_list and id_column is not None:
             raise ValueError(
                 "No neuron IDs specified but file contains "
                 f"neuron IDs in column {str(id_column)}. Specify empty list to "
@@ -474,9 +490,9 @@ class NestIO(BaseIO):
                 ""
             )
 
-        if gid_list != [None] and id_column is None:
-            raise ValueError(f"Specified neuron IDs to be {gid_list}, but no ID column " "specified.")
-        return gid_list, id_column
+        if id_list != [None] and id_column is None:
+            raise ValueError(f"Specified neuron IDs to be {id_list}, but no ID column " "specified.")
+        return id_list, id_column
 
     def _check_input_sampling_period(self, sampling_period, time_column, time_unit, data):
         """
@@ -598,7 +614,8 @@ class NestIO(BaseIO):
         value_units=None,
         lazy=False,
     ):
-        assert not lazy, "Do not support lazy"
+        if lazy:
+            NotImplementedError("Lazy loading is not implemented for NestIO.")
 
         seg = self.read_segment(gid_list, time_unit, t_start,
                                 t_stop, sampling_period, id_column_dat,
@@ -668,7 +685,8 @@ class NestIO(BaseIO):
             The Segment contains one SpikeTrain and one AnalogSignal for
             each ID in gid_list.
         """
-        assert not lazy, "Do not support lazy"
+        if lazy:
+            NotImplementedError("Lazy loading is not implemented for NestIO.")
 
         if isinstance(gid_list, tuple):
             if gid_list[0] > gid_list[1]:
@@ -756,7 +774,8 @@ class NestIO(BaseIO):
             The requested SpikeTrain object with an annotation 'id'
             corresponding to the gdf_id parameter.
         """
-        assert not lazy, "Do not support lazy"
+        if lazy:
+            NotImplementedError("Lazy loading is not implemented for NestIO.")
 
         # __read_spiketrains() needs a list of IDs
         return self.__read_analogsignals(
@@ -772,6 +791,9 @@ class NestIO(BaseIO):
             value_units=value_unit,
         )[0]
 
+    # TODO: There is still a bug in the logic here -- if there are multiple files
+    #    Being read from, __read_spiketrains will return one spike train per
+    #    file -- this will break the expected behavior here
     def read_spiketrain(
             self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
             id_column=None, time_column=None, lazy=False, **args
@@ -783,7 +805,9 @@ class NestIO(BaseIO):
         ----------
         id : int, default: None
             The ID of the returned SpikeTrain. The ID must be specified if
-            the file contains neuron IDs.
+            the file contains sender IDs. If the file is a NEST 2.x file that
+            only contains times, all spike times of one file are read into a
+            single SpikeTrain object.
         time_unit : Quantity (time)
             The time unit of recorded time stamps. For NEST 3.x files, if times
             are given by the column headers `time_step` and `time_offset`, the
@@ -833,7 +857,16 @@ class NestIO(BaseIO):
         -------
         spiketrain : SpikeTrain
             The requested SpikeTrain object with an annotation 'id'
-            corresponding to the gdf_id parameter.
+            corresponding to the sender ID. If the data comes from a NEST 2.x
+            file that only contains times, `id` is set to `None`.
+
+        Returns
+        -------
+        spiketrain : SpikeTrainList
+            The requested SpikeTrain object with an annotation 'id'
+            corresponding to the sender ID. If the data comes from a NEST 2.x
+            file that only contains times, `id` is set to `None`.
+
         """
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
