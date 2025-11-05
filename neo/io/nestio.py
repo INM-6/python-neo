@@ -689,33 +689,61 @@ class NestIO(BaseIO):
         )[0]
 
     def read_spiketrain(
-        self, neuron_id=None, time_unit=pq.ms, t_start=None, t_stop=None,
-        id_column=0, time_column=1, lazy=False, **args
+        self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
+        id_column=None, time_column=None, lazy=False, **args
     ):
         """
         Reads a SpikeTrain with specified neuron ID from the data file.
 
         Arguments
         ----------
-        neuron_id : int, default: None
+        id : int, default: None
             The ID of the returned SpikeTrain. The ID must be specified if
             the file contains neuron IDs.
         time_unit : Quantity (time)
-            The time unit of recorded time stamps.
+            The time unit of recorded time stamps. For NEST 3.x files, if times
+            are given by the column headers `time_step` and `time_offset`, the
+            time is calculated as (`time_steps` * `time_unit` - `time_offset`).
+            If times are given by `time_ms`, the value of `time_unit` is ignored
+            and milliseconds are used. For NEST 2.x files, `time_unit` directly
+            indicates the unit of values in the file.
             Default: quantities.ms
         t_start : Quantity (time)
-            Start time of SpikeTrain. t_start must be specified.
+            Start time of SpikeTrain. `t_start` must be specified.
             Default: None
         t_stop : Quantity (time)
-            Stop time of SpikeTrain. t_stop must be specified.
+            Stop time of SpikeTrain. `t_stop` must be specified.
             Default: None
         id_column : int
-            Column index of neuron IDs.
-            Default: 0
+            Column index of neuron IDs. If None, the defaults are used. For
+            NEST version 2.x, this is 0 (the first column). For NEST version
+            3.x, the column is identified by the column header `sender` in the
+            file. In this case, `id_column` is ignored, but if not set to
+            `None`, a warning is issued that the value conflicts with the
+            header information. If the file contains a header, but the column
+            headers do not match the expectancy, the header is ignored, the
+            value for `id_column` is used, and a warning is issued indicating
+            a non-valid NEST data file.
+            Default: None
         time_column : int
-            Column index of time stamps.
-            Default: 1
-        lazy : bool, optional, default: False
+            Column index of time stamps. If None, the defaults are used. For
+            NEST version 2.x, this is 1 (the second column). For NEST
+            version 3.x, the column is identified by the column header(s) in
+            the file. The relevant header is `time_ms` if `time_in_steps` was
+            set to `False` on the NEST spike recorder. Otherwise, the relevant
+            headers are `time_steps` and `time_offset` if `time_in_steps` was
+            set to `True`. In either of these two cases, `time_column` is
+            ignored, but if not set to `None`, a warning is issued if the value
+            conflicts with the index inferred from the header information
+            (`time_ms` or `time_steps` column). If the file contains a header,
+            but the column headers do not match the expectancy, the header is
+            ignored, the value for `time_column` is used (in the sense of
+            `time_ms`), and a warning is issued indicating a non-valid NEST data
+            file.
+            Default: None
+        lazy : bool
+            Lazy loading is currently not implemented for NestIO, and this value has no effect.
+            Default: False
 
         Returns
         -------
@@ -726,14 +754,14 @@ class NestIO(BaseIO):
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
 
-        if (not isinstance(neuron_id, int)) and neuron_id is not None:
+        if (not isinstance(id, int)) and id is not None:
             raise ValueError("gdf_id has to be of type int or None.")
 
-        if neuron_id is None and id_column is not None:
+        if id is None and id_column is not None:
             raise ValueError(f"No neuron ID specified but column for IDs is defined as column index {id_column}.")
 
         return self.__read_spiketrains(
-            [neuron_id], time_unit, t_start, t_stop,
+            [id], time_unit, t_start, t_stop,
             id_column, time_column, **args)[0]
 
 
