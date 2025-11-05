@@ -107,7 +107,7 @@ class NestIO(BaseIO):
         """
 
         # checking gid input parameters
-        gid_list, id_column = self._check_input_gids(gid_list, id_column)
+        gid_list, id_column = self._check_input_ids(gid_list, id_column)
         # checking time input parameters
         t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
 
@@ -207,8 +207,8 @@ class NestIO(BaseIO):
         Internal function for reading multiple spiketrains at once.
         This function is called by read_spiketrain() and read_segment().
 
-        Parameters
-        ----------
+        Arguments
+        ---------
         id_list : list of int or None
             The IDs of the spike trains to load. If None is specified, all
             IDs will be read in the file if the file contains IDs. If the file
@@ -218,10 +218,11 @@ class NestIO(BaseIO):
 
         Returns
         -------
-        spiketrain : SpikeTrainList
-            The requested SpikeTrain object with an annotation 'id'
-            corresponding to the sender ID. If the data comes from a NEST 2.x
-            file that only contains times, `id` is set to `None`.
+        spiketrains : SpikeTrainList
+            The requested SpikeTrainList object with an annotation 'id' for each
+            SpikeTrain of the list corresponding to the sender ID. If the data
+            comes from a NEST 2.x file that only contains times, `id` is set to
+            `None`.
         """
         spiketrain_list = SpikeTrainList()
 
@@ -321,7 +322,7 @@ class NestIO(BaseIO):
             assert resolved_time_column is not None
 
             # Check validity of IDs being in the resolved ID column
-            id_list, resolved_id_column = self._check_input_gids(id_list, resolved_id_column)
+            id_list, resolved_id_column = self._check_input_ids(id_list, resolved_id_column)
             # Check validity of start and stop times
             t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=True)
 
@@ -401,6 +402,40 @@ class NestIO(BaseIO):
                                                   **args))
         return spiketrain_list
 
+    def _check_input_ids(self, id_list, id_column):
+        """
+        Checks gid values and column for consistency. Also makes sure that
+        None becomes [None] for consistency.
+
+        Arguments
+        ---------
+        id_list: list of int or None
+            IDs to consider.
+        id_column: int,
+            Index of the column containing the IDs.
+
+        Returns
+        -------
+        id_list: list of int or None
+            Adjusted IDs
+        id_column: int
+            Adjusted indices of the column containing the IDs.
+        """
+        if id_list is None:
+            id_list = [id_list]
+
+        if None in id_list and id_column is not None:
+            raise ValueError(
+                "No sender IDs specified but file contains "
+                f"sender IDs in column {str(id_column)}. Specify empty list to "
+                "retrieve data for all sender IDs."
+                ""
+            )
+
+        if id_list != [None] and id_column is None:
+            raise ValueError(f"Specified sender IDs to be {id_list}, but no ID column " "specified.")
+        return id_list, id_column
+
     def _check_input_times(self, t_start, t_stop, mandatory=True):
         """
         Checks input times for existence and setting default values if
@@ -469,31 +504,6 @@ class NestIO(BaseIO):
 
         return value_columns, value_types, value_units
 
-    def _check_input_gids(self, id_list, id_column):
-        """
-        Checks gid values and column for consistency.
-
-        gid_list: list of int or None, gid to load.
-        id_column: int, id of the column containing the gids.
-
-        Returns
-        adjusted list of [gid_list, id_column].
-        """
-        if id_list is None:
-            id_list = [id_list]
-
-        if None in id_list and id_column is not None:
-            raise ValueError(
-                "No neuron IDs specified but file contains "
-                f"neuron IDs in column {str(id_column)}. Specify empty list to "
-                "retrieve spiketrains of all neurons."
-                ""
-            )
-
-        if id_list != [None] and id_column is None:
-            raise ValueError(f"Specified neuron IDs to be {id_list}, but no ID column " "specified.")
-        return id_list, id_column
-
     def _check_input_sampling_period(self, sampling_period, time_column, time_unit, data):
         """
         Checks sampling period, times and time unit for consistency.
@@ -516,7 +526,7 @@ class NestIO(BaseIO):
                     dt = data_sampling[0]
             else:
                 raise ValueError('Can not estimate sampling rate without time '
-                                 'column id provided.')
+                                 'column index provided.')
             sampling_period = pq.CompoundUnit(str(dt) + '*'
                                               + time_unit.units.u_symbol)
         elif not isinstance(sampling_period, pq.Quantity):
@@ -859,23 +869,12 @@ class NestIO(BaseIO):
             The requested SpikeTrain object with an annotation 'id'
             corresponding to the sender ID. If the data comes from a NEST 2.x
             file that only contains times, `id` is set to `None`.
-
-        Returns
-        -------
-        spiketrain : SpikeTrainList
-            The requested SpikeTrain object with an annotation 'id'
-            corresponding to the sender ID. If the data comes from a NEST 2.x
-            file that only contains times, `id` is set to `None`.
-
         """
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
 
         if (not isinstance(id, int)) and id is not None:
             raise ValueError("ID has to be of type int or None.")
-
-        if id is None and id_column is not None:
-            raise ValueError(f"No ID specified but column for IDs is defined as column index {id_column}.")
 
         return self.__read_spiketrains(
             [id], time_unit, t_start, t_stop,
@@ -889,8 +888,8 @@ class NESTColumnReader:
     The file may have multiple header lines, which are interpreted if they conform to NEST standards. Header lines
     are identified as the first lines in the file where the first word in not a digit number.
 
-    Parameters
-    ----------
+    Arguments
+    ---------
     filename: string
         Path to columnar ASCII file to read
 
@@ -1009,8 +1008,8 @@ class NESTColumnReader:
         """
         Returns data from specific columns of the text file, sorted and filtered by user-defined conditions.
 
-        Parameters
-        ----------
+        Arguments
+        ---------
         column_indices : int, list of int, string
             IDs of columns to extract, where 0 is the first column. If "all" or an empty list or None is specified,
             all columns are returned.
