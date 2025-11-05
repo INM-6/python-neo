@@ -749,7 +749,7 @@ class NestIO(BaseIO):
         return seg
 
     def read_analogsignal(
-        self, id, time_unit=pq.ms, t_start=None, t_stop=None,
+        self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
         sampling_period=None, id_column=None, time_column=None,
         value_column=None, value_type=np.float64, value_unit=None,
         lazy=False,  **args
@@ -763,7 +763,9 @@ class NestIO(BaseIO):
             The ID of the sender of time series to load. The ID must be
             specified if the file contains sender IDs. If the file is a NEST 2.x
             file that only contains times, all times of one file are read into a
-            single AnalogSignal object.
+            single AnalogSignal object. In this case, `id` is to be set to
+            `None`.
+            Default: None
         time_unit : Quantity (time)
             The time unit of recorded time stamps. For NEST 3.x files, if times
             are given by the column headers `time_step` and `time_offset`, the
@@ -859,7 +861,7 @@ class NestIO(BaseIO):
     #    Being read from, __read_spiketrains will return one spike train per
     #    file -- this will break the expected behavior here
     def read_spiketrain(
-            self, id, time_unit=pq.ms, t_start=None, t_stop=None,
+            self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
             id_column=None, time_column=None, lazy=False, **args
     ):
         """
@@ -871,7 +873,8 @@ class NestIO(BaseIO):
             The ID of the returned SpikeTrain. The ID must be specified if
             the file contains sender IDs. If the file is a NEST 2.x file that
             only contains times, all spike times of one file are read into a
-            single SpikeTrain object.
+            single SpikeTrain object. In this case, `id` is to be set to `None`.
+            Default: None
         time_unit : Quantity (time)
             The time unit of recorded time stamps. For NEST 3.x files, if times
             are given by the column headers `time_step` and `time_offset`, the
