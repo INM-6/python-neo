@@ -90,24 +90,37 @@ class NestIO(BaseIO):
         self.IOs = [NESTColumnReader(filename, **kwargs) for filename in filenames]
 
     def __read_analogsignals(
-        self,
-        gid_list,
-        time_unit,
-        t_start=None,
-        t_stop=None,
-        sampling_period=None,
-        id_column=0,
-        time_column=1,
-        value_columns=2,
-        value_types=None,
-        value_units=None,
+        self, id_list, time_unit, t_start, t_stop,
+        sampling_period, id_column, time_column,
+        value_columns, value_types, value_units, **args
     ):
         """
-        Internal function called by read_analogsignal() and read_segment().
+        Internal function for reading multiple analog signals at once.
+        This function is called by read_analogsignal() and read_segment().
+
+        Arguments
+        ----------
+        id_list : list of int or None
+            The IDs of the senders of time series to load. If None is specified,
+            all IDs will be read if the file contains IDs. If the file
+            is a NEST 2.x file that only contains times, all senders
+            of one file are read into a single AnalogSignal object per file.
+        Other parameters: see read_analogsignal().
+
+        Returns
+        -------
+        analogsignals : list of AnalogSignal
+            The requested list of AnalogSignal objects with an annotation 'id'
+            corresponding to the sender ID. If the data comes from a NEST 2.x
+            file that only contains times, `id` is set to `None`. In addition,
+            the AnalogSignals contains an array annotation 'measurement` for
+            each time series of the AnalogSignal object that equates to the
+            header of the corresponding column for NEST 3.x files, and to the
+            column index for NEST 2.x files.
         """
 
         # checking gid input parameters
-        gid_list, id_column = self._check_input_ids(gid_list, id_column)
+        id_list, id_column = self._check_input_ids(id_list, id_column)
         # checking time input parameters
         t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
 
@@ -141,7 +154,7 @@ class NestIO(BaseIO):
         (condition, condition_column,
          sorting_column) = self._get_conditions_and_sorting(id_column,
                                                             time_column,
-                                                            gid_list,
+                                                            id_list,
                                                             t_start,
                                                             t_stop)
 
@@ -162,10 +175,10 @@ class NestIO(BaseIO):
                                   data)
 
             # extracting complete gid list for anasig generation
-            if not gid_list and id_column is not None:
+            if not id_list and id_column is not None:
                 current_gid_list = np.unique(data[:, id_column])
             else:
-                current_gid_list = gid_list
+                current_gid_list = id_list
 
             # generate analogsignals for each neuron ID
             for i in current_gid_list:
@@ -202,9 +215,11 @@ class NestIO(BaseIO):
                                 sampling_period)
         return analogsignal_list
 
-    def __read_spiketrains(self, id_list, time_unit, t_start, t_stop, id_column, time_column, **args):
+    def __read_spiketrains(self,
+            id_list, time_unit, t_start, t_stop,
+            id_column, time_column, **args):
         """
-        Internal function for reading multiple spiketrains at once.
+        Internal function for reading multiple spike trains at once.
         This function is called by read_spiketrain() and read_segment().
 
         Arguments
@@ -734,62 +749,98 @@ class NestIO(BaseIO):
         return seg
 
     def read_analogsignal(
-        self,
-        gid=None,
-        time_unit=pq.ms,
-        t_start=None,
-        t_stop=None,
-        sampling_period=None,
-        id_column=0,
-        time_column=1,
-        value_column=2,
-        value_type=None,
-        value_unit=None,
-        lazy=False,
+        self, id, time_unit=pq.ms, t_start=None, t_stop=None,
+        sampling_period=None, id_column=None, time_column=None,
+        value_column, value_type=None, value_unit=None,
+        lazy=False,  **args
     ):
         """
-        Reads an AnalogSignal with specified neuron ID from the DAT data.
+        Reads an AnalogSignal with specified sender ID from the data.
 
         Arguments
         ----------
-        gid : int, default: None
-            The GDF ID of the returned SpikeTrain. gdf_id must be specified if
-            the GDF file contains neuron IDs, the default None then raises an
-            error. Specify an empty list [] to retrieve the spike trains of all
-            neurons.
-        time_unit : Quantity (time), optional, default: quantities.ms
-            The time unit of recorded time stamps.
-        t_start : Quantity (time), optional, default: 0 * pq.ms
-            Start time of SpikeTrain.
-        t_stop : Quantity (time), default: None
-            Stop time of SpikeTrain. t_stop must be specified, the default None
-            raises an error.
-        sampling_period : Quantity (frequency), optional, default: None
-            Sampling period of the recorded data.
-        id_column : int, optional, default: 0
-            Column index of neuron IDs.
-        time_column : int, optional, default: 1
-            Column index of time stamps.
-        value_column : int, optional, default: 2
-            Column index of the analog values recorded.
-        value_type : str, optional, default: None
-            Nest data type of the analog values recorded, eg.'V_m', 'I', 'g_e'.
-        value_unit : Quantity (amplitude), default: None
-            The physical unit of the recorded signal values.
-        lazy : bool, optional, default: False
+        id : int or None
+            The ID of the sender of time series to load. The ID must be
+            specified if the file contains sender IDs. If the file is a NEST 2.x
+            file that only contains times, all times of one file are read into a
+            single AnalogSignal object.
+        time_unit : Quantity (time)
+            The time unit of recorded time stamps. For NEST 3.x files, if times
+            are given by the column headers `time_step` and `time_offset`, the
+            time is calculated as (`time_steps` * `time_unit` - `time_offset`).
+            If times are given by `time_ms`, the value of `time_unit` is ignored
+            and milliseconds are used. For NEST 2.x files, `time_unit` directly
+            indicates the unit of values in the file.
+            Default: quantities.ms
+        t_start : Quantity (time)
+            Start time of SpikeTrain. `t_start` must be specified.
+            Default: None
+        t_stop : Quantity (time)
+            Stop time of SpikeTrain. `t_stop` must be specified.
+            Default: None
+        sampling_period : Quantity (time)
+            Sampling period of the signal. Only used for NEST 2.x files without
+            a time column.
+            Default: None
+        id_column : int or None
+            Column index of sender IDs. If None, the defaults are used. For
+            NEST version 2.x, this is 0 (the first column). For NEST version
+            3.x, the column is identified by the column header `sender` in the
+            file. In this case, `id_column` is ignored, but if not set to
+            `None`, a warning is issued that the value conflicts with the
+            header information. If the file contains a header, but the column
+            headers do not match the expectancy, the header is ignored, the
+            value for `id_column` is used, and a warning is issued indicating
+            a non-valid NEST data file.
+            Default: None
+        time_column : int or None
+            Column index of time stamps. If None, the defaults are used. For
+            NEST version 2.x, this is 1 (the second column). For NEST
+            version 3.x, the column is identified by the column header(s) in
+            the file. The relevant header is `time_ms` if `time_in_steps` was
+            set to `False` on the NEST spike recorder. Otherwise, the relevant
+            headers are `time_steps` and `time_offset` if `time_in_steps` was
+            set to `True`. In either of these two cases, `time_column` is
+            ignored, but if not set to `None`, a warning is issued if the value
+            conflicts with the index inferred from the header information
+            (`time_ms` or `time_steps` column). If the file contains a header,
+            but the column headers do not match the expectancy, the header is
+            ignored, the value for `time_column` is used (in the sense of
+            `time_ms`), and a warning is issued indicating a non-valid NEST data
+            file.
+            Default: None
+        value_column : int or string
+            Column index of signal values. NEST version 2.x, this is an integer
+            specifying the index of the column. For NEST version 3.x, the column
+            can either bei specified by an integer, or can be is identified by
+            a string matching the column header(s) in the file.
+        value_type : np.dtype
+            Default: np.float64
+        value_unit : Quantity
+            If None is specified, the unit is guessed from the column header in
+            NEST 3.x files, and otherwise set to `quantities.dimensionless`.
+            Default: None
+        lazy : bool
+            Lazy loading is currently not implemented for NestIO, and this value has no effect.
+            Default: False
 
         Returns
         -------
-        spiketrain : SpikeTrain
-            The requested SpikeTrain object with an annotation 'id'
-            corresponding to the gdf_id parameter.
+        analogsignal : AnalogSignal
+            The requested AnalogSignal object with an annotation 'id'
+            corresponding to the sender ID. If the data comes from a NEST 2.x
+            file that only contains times, `id` is set to `None`. In addition,
+            the AnalogSignal contains an array annotation 'measurement` for
+            each time series of the AnalogSignal object that equates to the
+            header of the corresponding column for NEST 3.x files, and to the
+            column index for NEST 2.x files.
         """
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
 
         # __read_spiketrains() needs a list of IDs
         return self.__read_analogsignals(
-            [gid],
+            [id],
             time_unit,
             t_start,
             t_stop,
@@ -805,7 +856,7 @@ class NestIO(BaseIO):
     #    Being read from, __read_spiketrains will return one spike train per
     #    file -- this will break the expected behavior here
     def read_spiketrain(
-            self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
+            self, id, time_unit=pq.ms, t_start=None, t_stop=None,
             id_column=None, time_column=None, lazy=False, **args
     ):
         """
@@ -813,7 +864,7 @@ class NestIO(BaseIO):
 
         Arguments
         ----------
-        id : int, default: None
+        id : int
             The ID of the returned SpikeTrain. The ID must be specified if
             the file contains sender IDs. If the file is a NEST 2.x file that
             only contains times, all spike times of one file are read into a
@@ -832,7 +883,7 @@ class NestIO(BaseIO):
         t_stop : Quantity (time)
             Stop time of SpikeTrain. `t_stop` must be specified.
             Default: None
-        id_column : int
+        id_column : int or None
             Column index of neuron IDs. If None, the defaults are used. For
             NEST version 2.x, this is 0 (the first column). For NEST version
             3.x, the column is identified by the column header `sender` in the
@@ -843,7 +894,7 @@ class NestIO(BaseIO):
             value for `id_column` is used, and a warning is issued indicating
             a non-valid NEST data file.
             Default: None
-        time_column : int
+        time_column : int or None
             Column index of time stamps. If None, the defaults are used. For
             NEST version 2.x, this is 1 (the second column). For NEST
             version 3.x, the column is identified by the column header(s) in
