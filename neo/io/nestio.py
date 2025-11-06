@@ -1109,17 +1109,44 @@ class NestColumnReader:
     Other keyword arguments are passed to `numpy.loadtxt()`
         TODO: Decide if we really want to have an automatic decision here regarding the data type based on a period.
         TODO: Previous versions ignored `dtype` as keyword argument and overwrote it. I think it should be left to the user to supply the dtype.
+
+
+    Class attributes
+    ----------------
+    nest_version : string
+        Contains the NEST version extracted from the header. If no valid header
+        is found, the string defaults to "2.x"
+    backend_version : string
+        Contains the NEST file backend version extracted from the header. If no
+        valid header is found, the string defaults to "1".
+    column_names : list of string
+        Contains the extracted names of the columns in the file. If no
+        valid header is found, the list is empty.
+    header_indices : dict
+        Dictionary in which the keys are the header names and the values are the
+        indices of the corresponding columns in the file. The dictionary
+        contains entries for all standard headers and any additional columns
+        found in a NEST 3.x file. Columns that were not found are marked as
+        `None`. If no valid header is found, the dictionary is empty.
+    standard_headers : list of string
+        List of the names of all standard headers (sender ID and time related
+        columns).
+    valid_nest3_file : bool
+        True if the file has a valid NEST 3.x header.
+    nest3_contains_time_series : bool
+        True, if the file has a valid NEST 3.x header and contains columns for
+        a time series (i.e., columns other than sender ID and time column(s)).
     """
 
     def __init__(self, filename, **kwargs):
         self.filename = filename
 
-        # Default values for files without header
+        # Default values for files without a header
         self.nest_version = "2.x"
         self.backend_version = "1"
         self.column_names = []
 
-        # All lines before first data line
+        # All lines before the first data line
         header_lines_raw = []
         # Total count of lines to skip for np.loadtxt
         header_size = 0
@@ -1146,11 +1173,14 @@ class NestColumnReader:
                     header_lines_raw.append(stripped_line)
                     header_size += 1
 
+                # We detected the first data line containing a decimal number
                 if first_data_line_content is not None:
                     break
 
-            if first_data_line_content is None:
-                raise IOError("No data lines found in file.")
+            # TODO: To discuss: should we break at an empty file (i.e., no data)?
+            #  Probably not, therefore I commented the below statements.
+            # if first_data_line_content is None:
+            #     raise IOError("No data lines found in file.")
 
             # Filter out empty lines for strict header format checking
             valid_parsed_header_lines = [l for l in header_lines_raw if l]
@@ -1163,7 +1193,7 @@ class NestColumnReader:
                 # Example:
                 # # NEST version: 3.6.0
                 # # RecordingBackendASCII version: 2
-                # sender	time_ms	I_syn_ex	I_syn_in	V_m
+                # sender  time_ms  I_syn_ex  I_syn_in  V_m
                 if nest_match and backend_match and not valid_parsed_header_lines[2].startswith('#'):
                     self.nest_version = nest_match.group(1)
                     self.backend_version = backend_match.group(1)
@@ -1201,8 +1231,8 @@ class NestColumnReader:
             self.header_indices[col_name] = i
 
         # Add entries for the standard headers (even if not present in column_names)
-        standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
-        for header in standard_headers:
+        self.standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
+        for header in self.standard_headers:
             if header not in self.header_indices:
                 self.header_indices[header] = None
 
@@ -1215,7 +1245,7 @@ class NestColumnReader:
 
         # Determine if there are any columns besides the standard headers
         # For NEST 3.x, this indicates that the data must be a time series
-        self.nest3_contains_time_series = self.valid_nest3_file and (len(self.column_names) > len([h for h in standard_headers if h in self.column_names]))
+        self.nest3_contains_time_series = self.valid_nest3_file and (len(self.column_names) > len([h for h in self.standard_headers if h in self.column_names]))
 
     def get_columns(self, column_indices="all", condition=None, condition_column_index=None, sorting_column_indices=None):
         """
