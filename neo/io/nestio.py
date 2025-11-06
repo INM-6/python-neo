@@ -131,11 +131,11 @@ class NestIO(BaseIO):
             resolved_value_types = value_types
             resolved_value_units = value_units
 
-            if col.valid_nest3_file:
+            if col.is_valid_nest3_file:
                 # NEST 3.x file with header
 
                 # Skip NEST 3.x file if it does not contain a time series
-                if not col.nest3_contains_time_series:
+                if not col.has_time_series:
                     warnings.warn(
                         f"NEST 3.x file {col.filename} does not seem to contain a time series. "
                         "Skipping loading file as Neo AnalogSignal object."
@@ -376,11 +376,11 @@ class NestIO(BaseIO):
             resolved_time_column = time_column
             resolved_time_offset_column = None
 
-            if col.valid_nest3_file:
+            if col.is_valid_nest3_file:
                 # NEST 3.x file with minimum header for spike trains
 
                 # Skip NEST 3.x file if it does not contain spike times
-                if col.nest3_contains_time_series:
+                if col.has_time_series:
                     warnings.warn(
                         f"NEST 3.x file {col.filename} seems to contain a time series. "
                         "Skipping loading file as Neo SpikeTrain object."
@@ -1107,12 +1107,11 @@ class NestColumnReader:
         data. If it contains a '.' character, the type defaults to np.int64, otherwise it defaults to np.float64.
 
     Other keyword arguments are passed to `numpy.loadtxt()`
-        TODO: Decide if we really want to have an automatic decision here regarding the data type based on a period.
-        TODO: Previous versions ignored `dtype` as keyword argument and overwrote it. I think it should be left to the user to supply the dtype.
-
 
     Class attributes
     ----------------
+    data : numpy.ndarray
+        The data read from the file, with any headers excluded.
     nest_version : string
         Contains the NEST version extracted from the header. If no valid header
         is found, the string defaults to "2.x"
@@ -1131,9 +1130,9 @@ class NestColumnReader:
     standard_headers : list of string
         List of the names of all standard headers (sender ID and time related
         columns).
-    valid_nest3_file : bool
+    is_valid_nest3_file : bool
         True if the file has a valid NEST 3.x header.
-    nest3_contains_time_series : bool
+    has_time_series : bool
         True, if the file has a valid NEST 3.x header and contains columns for
         a time series (i.e., columns other than sender ID and time column(s)).
     """
@@ -1142,15 +1141,15 @@ class NestColumnReader:
         self.filename = filename
 
         # Default values for files without a header
-        self.valid_nest3_file = False
+        self.is_valid_nest3_file = False
         self.nest_version = "2.x"
         self.backend_version = "1"
         self.column_names = []
         self.header_indices = {}
-        self.nest3_contains_time_series = False
+        self.has_time_series = False
 
         # Standard headers for NEST 3.x files
-        self.standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
+        self.standard_headers = ['sender', 'time_ms', 'time_step', 'time_offset']
 
         # All lines before the first data line
         header_lines_raw = []
@@ -1190,48 +1189,66 @@ class NestColumnReader:
 
         # Filter out empty lines for strict header format checking
         valid_parsed_header_lines = [l for l in header_lines_raw if l]
-
         if len(valid_parsed_header_lines) == 3:
-            nest_match = re.match(r'# NEST version: (\d+\.\d+\.\d+)', valid_parsed_header_lines[0])
-            backend_match = re.match(r'# RecordingBackendASCII version: (\d+)', valid_parsed_header_lines[1])
+            # Assume for now it may be a valid NEST 3.x file until proven wrong
+            self.is_valid_nest3_file = True
 
-            # Check for the specific header pattern: two version lines followed by column names
+            # Check for the specific NEST 3.x header pattern:
+            # two version lines followed by column names
             # Example:
             # # NEST version: 3.6.0
             # # RecordingBackendASCII version: 2
             # sender  time_ms  I_syn_ex  I_syn_in  V_m
-            if nest_match and backend_match and not valid_parsed_header_lines[2].startswith('#'):
+            nest_match = re.match(r'# NEST version: (\d+\.\d+\.\d+)', valid_parsed_header_lines[0])
+            backend_match = re.match(r'# RecordingBackendASCII version: (\d+)', valid_parsed_header_lines[1])
+            if not nest_match or not backend_match or valid_parsed_header_lines[2].startswith('#'):
+                self.is_valid_nest3_file = False
+
+            # Create a dictionary with column names and their indices
+            column_names = valid_parsed_header_lines[2].split()
+
+            # Check that column headers are unique
+            if len(set(column_names)) != len(column_names):
+                raise IOError(f"Duplicate column headers found in "
+                               "NEST 3.x file {self.filename}.")
+            header_indices = {}
+            for i, col_name in enumerate(column_names):
+                header_indices[col_name] = i
+
+            # Check if this is a NEST 3.x file, i.e., standard headers are present
+            if (('sender' not in column_names) or
+                (('time_ms' not in column_names) and
+                 (('time_step' not in column_names) or
+                  ('time_offset' not in column_names)))
+               ):
+                self.is_valid_nest3_file = False
+
+            # All checks have confirmed this is a valid NEST 3.x file
+            if self.is_valid_nest3_file:
                 self.nest_version = nest_match.group(1)
                 self.backend_version = backend_match.group(1)
-                self.column_names = valid_parsed_header_lines[2].split()
 
-                # Create dictionary with column names and their indices
-                self.header_indices = {}
-                for i, col_name in enumerate(self.column_names):
-                    self.header_indices[col_name] = i
-
+                self.column_names = column_names
                 # Add entries for the standard headers (even if not present
                 # in column_names)
+                self.header_indices = header_indices
                 for header in self.standard_headers:
                     if header not in self.header_indices:
                         self.header_indices[header] = None
 
-                # Check if this is a NEST 3.x file, i.e., the headers
-                self.valid_nest3_file = False
-                if (self.header_indices['sender'] and
-                        (self.header_indices['time_ms'] or
-                         (self.header_indices['time_steps'] and self.header_indices['time_offset']))):
-                    self.valid_nest3_file = True
-
                 # Determine if there are any columns besides the standard headers
                 # For NEST 3.x, this indicates that the data must be a time series
-                self.nest3_contains_time_series = self.valid_nest3_file and (len(self.column_names) > len([h for h in self.standard_headers if h in self.column_names]))
+                self.has_time_series =\
+                    len(self.column_names) >\
+                    len([h for h in self.standard_headers if h in self.column_names])
 
-        if len(valid_parsed_header_lines) > 0 and not self.valid_nest3_file:
+        if len(valid_parsed_header_lines) > 0 and not self.is_valid_nest3_file:
             # Some header lines exist, but not enough for specific format
             warnings.warn("Unidentified header format. Using default NEST version '2.x', "
-                              "RecordingBackendASCII version '1', and no column names. Skipping header.")
+                          "RecordingBackendASCII version '1', and no column names. Skipping header.")
 
+        # TODO: Decide if we really want to have an automatic decision here regarding the data type based on a period.
+        # TODO: Previous versions ignored `dtype` as keyword argument and overwrote it. I think it should be left to the user to supply the dtype.
         # Determine dtype if not specified in kwargs
         if 'dtype' not in kwargs:
             if '.' not in first_data_line_content:

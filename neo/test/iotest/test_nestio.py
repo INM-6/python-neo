@@ -351,7 +351,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
 
-        filename = self.get_local_path("nest/precise_spikes_times-19-0.dat")
+        filename = self.get_local_path("nest/nest3/precise_spikes_times-19-0.dat")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
             id=1,
@@ -372,7 +372,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
 
-        filename = self.get_local_path("nest/precise_spikes_steps-20-0.dat")
+        filename = self.get_local_path("nest/nest3/precise_spikes_steps-20-0.dat")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
             id=1,
