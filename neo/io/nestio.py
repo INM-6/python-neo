@@ -1075,15 +1075,30 @@ class NestIO(BaseIO):
 
 class NestColumnReader:
     """
-    Class for reading an NEST ASCII file containing multiple columns of data and possibly a header.
+    Class for reading an NEST ASCII file containing multiple columns of data
+    and, in case of NEST 3.x or higher, a header.
 
-    The file may have multiple header lines, which are interpreted if they conform to NEST standards. Header lines
-    are identified as the first lines in the file where the first word in not a digit number.
+    NEST data is stored in columns. There are multiple standard columns in a
+    NEST file. A sender ID column indicates the numeric ID of the NEST object
+    that created a data point in the file. This may be the ID of a neuron or
+    synapse. A time column indicates the time point when a measurement was
+    taken. This time can be in milliseconds, or it can be in units of steps of
+    the original simulation time resolution, in NEST 3.x accompanied by an offset
+    to indicate the precise time point (sub-resolution). For spike recorders,
+    this is all the information that is stored.
+
+    In addition, there may be additional columns indicating measurements taken
+    at the time points, such as a voltage.from a voltage meter.
+
+    The file may have multiple header lines, which are interpreted if they
+    conform to NEST standards. Header lines are identified as the first lines
+    in the file where the first word in not a digit number. Headers that do not
+    fit the NEST standards are ignored.
 
     Arguments
     ---------
     filename: string
-        Path to columnar ASCII file to read
+        Path to columnar ASCII file to read.
 
     Keyword arguments
     -----------------
