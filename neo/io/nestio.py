@@ -1,7 +1,7 @@
 """
 Class for reading output files from NEST simulations
 ( http://www.nest-simulator.org/ ).
-Tested with NEST2.10.0
+Tested with NEST2.10.0, NEST3.6
 
 Depends on: numpy, quantities
 
@@ -1328,11 +1328,11 @@ class NestColumnReader:
 
             if max(sorting_column_indices) >= num_available_columns:
                 raise ValueError(
-                    f"Cannot sort by column ID {max(sorting_column_indices)}. File contains "
-                    f"only {num_available_columns} columns."
+                    f"Cannot sort by column ID {max(sorting_column_indices)}. "
+                    f"File contains only {num_available_columns} columns."
                 )
 
-        # Start with whole dataset selected for return
+        # Start with the whole dataset selected for return
         selected_data = self.data
 
         # Apply filter condition to rows
@@ -1354,7 +1354,8 @@ class NestColumnReader:
             # kind='stable' ensures that when two elements have equal values in the current column,
             # their relative order is preserved so that columns remain intact and prior sorting is preseved.
             for col in sorting_column_indices:
-                selected_data = selected_data[np.argsort(selected_data[:, col], kind='stable')]
+                selected_data = selected_data[np.argsort(
+                    selected_data[:, col], kind='stable')]
 
         # Select only requested columns
         selected_data = selected_data[:, column_indices]
