@@ -248,9 +248,6 @@ class NestIO(BaseIO):
             id_list, resolved_id_column = self._check_input_ids(id_list, resolved_id_column)
             t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
 
-            print(resolved_id_column)
-            print(resolved_time_column)
-
             # Defining standard column order for internal usage
             # [id_column, time_column, optional: time_offset, value_column1, value_column2, ...]
             column_ids = [resolved_id_column, resolved_time_column]
@@ -291,6 +288,10 @@ class NestIO(BaseIO):
                 1,  # Always use index 1 for time column in data array
                 time_unit,
                 data)
+
+            for i,j in enumerate(column_ids):
+                if j == -1:
+                    data[:,i]=0
 
             # Extracting complete ID list for analog signal generation
             if not id_list and resolved_id_column is not None:
@@ -734,7 +735,7 @@ class NestIO(BaseIO):
         list of selected gids
         """
         gids = np.array([0, data.shape[0]])
-        if id_column is not None:
+        if id_column is not None and gid:
             gids = np.array([np.searchsorted(data[:, id_column], gid, side='left'),
                              np.searchsorted(data[:, id_column], gid, side='right')])
         gid_data = data[gids[0]:gids[1], :]
@@ -995,8 +996,8 @@ class NestIO(BaseIO):
     #    Being read from, __read_spiketrains will return one spike train per
     #    file -- this will break the expected behavior here
     def read_spiketrain(
-            self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
-            id_column=None, time_column=None, lazy=False, **args
+        self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
+        id_column=None, time_column=None, lazy=False, **args
     ):
         """
         Reads a SpikeTrain with specified neuron ID from the data file.
