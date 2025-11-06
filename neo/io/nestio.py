@@ -1266,19 +1266,20 @@ class NestColumnReader:
         if self.data.ndim == 1:
             self.data = self.data[:, np.newaxis]
         elif self.data.ndim != 2:
-            raise ValueError("File could not be parsed correctly. Data is not 2-dimensional.")
+            raise ValueError("File could not be parsed correctly. "
+                             "Data is not 2-dimensional.")
 
 
-    def get_columns(self, column_indices="all", condition=None, condition_column_index=None, sorting_column_indices=None):
+    def get_columns(self, column_indices=None, condition=None, condition_column_index=None, sorting_column_indices=None):
         """
         Returns data from specific columns of the text file, sorted and filtered by user-defined conditions.
 
         Arguments
         ---------
-        column_indices : int, list of int, string
-            IDs of columns to extract, where 0 is the first column. If "all" or an empty list or None is specified,
+        column_indices : int, list of int
+            IDs of columns to extract, where 0 is the first column. If an empty list or None is specified,
             all columns are returned.
-            Default: "all"
+            Default: None
         condition : None, function
             If a function is supplied, it is applied to each row to evaluate if it should be included in the result.
             The function accepts as single argument the column data, i.e., an array with the number of samples (rows)
@@ -1301,7 +1302,7 @@ class NestColumnReader:
         num_available_columns = self.data.shape[1]
 
         # If all columns are requested, identify the IDs of all existing columns
-        if not column_indices or column_indices == "all":
+        if not column_indices:
             column_indices = range(num_available_columns)
 
         # Simplifies the selection of a single column by accepting an integer as input
