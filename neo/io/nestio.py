@@ -1142,9 +1142,15 @@ class NestColumnReader:
         self.filename = filename
 
         # Default values for files without a header
+        self.valid_nest3_file = False
         self.nest_version = "2.x"
         self.backend_version = "1"
         self.column_names = []
+        self.header_indices = {}
+        self.nest3_contains_time_series = False
+
+        # Standard headers for NEST 3.x files
+        self.standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
 
         # All lines before the first data line
         header_lines_raw = []
@@ -1177,41 +1183,61 @@ class NestColumnReader:
                 if first_data_line_content is not None:
                     break
 
-            # TODO: To discuss: should we break at an empty file (i.e., no data)?
-            #  Probably not, therefore I commented the below statements.
-            # if first_data_line_content is None:
-            #     raise IOError("No data lines found in file.")
+        # TODO: To discuss: should we break at an empty file (i.e., no data)?
+        #  Probably not, therefore I commented the below statements.
+        # if first_data_line_content is None:
+        #     raise IOError("No data lines found in file.")
 
-            # Filter out empty lines for strict header format checking
-            valid_parsed_header_lines = [l for l in header_lines_raw if l]
-            
-            if len(valid_parsed_header_lines) >= 3:
-                nest_match = re.match(r'# NEST version: (\d+\.\d+\.\d+)', valid_parsed_header_lines[0])
-                backend_match = re.match(r'# RecordingBackendASCII version: (\d+)', valid_parsed_header_lines[1])
-                
-                # Check for the specific header pattern: two version lines followed by column names
-                # Example:
-                # # NEST version: 3.6.0
-                # # RecordingBackendASCII version: 2
-                # sender  time_ms  I_syn_ex  I_syn_in  V_m
-                if nest_match and backend_match and not valid_parsed_header_lines[2].startswith('#'):
-                    self.nest_version = nest_match.group(1)
-                    self.backend_version = backend_match.group(1)
-                    self.column_names = valid_parsed_header_lines[2].split()
-                else:
-                    warnings.warn("Unidentified header format. Using default NEST version '2.x', "
-                                  "RecordingBackendASCII version '1', and no column names. Skipping header.")
-            elif len(valid_parsed_header_lines) > 0:
-                # Some header lines exist, but not enough for specific format
-                warnings.warn("Unidentified header format. Using default NEST version '2.x', "
-                                  "RecordingBackendASCII version '1', and no column names. Skipping header.")
+        # Filter out empty lines for strict header format checking
+        valid_parsed_header_lines = [l for l in header_lines_raw if l]
 
-            # Determine dtype if not specified in kwargs
-            if 'dtype' not in kwargs:
-                if '.' not in first_data_line_content:
-                    kwargs['dtype'] = np.int64
-                else:
-                    kwargs['dtype'] = np.float64
+        if len(valid_parsed_header_lines) == 3:
+            nest_match = re.match(r'# NEST version: (\d+\.\d+\.\d+)', valid_parsed_header_lines[0])
+            backend_match = re.match(r'# RecordingBackendASCII version: (\d+)', valid_parsed_header_lines[1])
+
+            # Check for the specific header pattern: two version lines followed by column names
+            # Example:
+            # # NEST version: 3.6.0
+            # # RecordingBackendASCII version: 2
+            # sender  time_ms  I_syn_ex  I_syn_in  V_m
+            if nest_match and backend_match and not valid_parsed_header_lines[2].startswith('#'):
+                self.nest_version = nest_match.group(1)
+                self.backend_version = backend_match.group(1)
+                self.column_names = valid_parsed_header_lines[2].split()
+
+                # Create dictionary with column names and their indices
+                self.header_indices = {}
+                for i, col_name in enumerate(self.column_names):
+                    self.header_indices[col_name] = i
+
+                # Add entries for the standard headers (even if not present
+                # in column_names)
+                for header in self.standard_headers:
+                    if header not in self.header_indices:
+                        self.header_indices[header] = None
+
+                # Check if this is a NEST 3.x file, i.e., the headers
+                self.valid_nest3_file = False
+                if (self.header_indices['sender'] and
+                        (self.header_indices['time_ms'] or
+                         (self.header_indices['time_steps'] and self.header_indices['time_offset']))):
+                    self.valid_nest3_file = True
+
+                # Determine if there are any columns besides the standard headers
+                # For NEST 3.x, this indicates that the data must be a time series
+                self.nest3_contains_time_series = self.valid_nest3_file and (len(self.column_names) > len([h for h in self.standard_headers if h in self.column_names]))
+
+        if len(valid_parsed_header_lines) > 0 and not self.valid_nest3_file:
+            # Some header lines exist, but not enough for specific format
+            warnings.warn("Unidentified header format. Using default NEST version '2.x', "
+                              "RecordingBackendASCII version '1', and no column names. Skipping header.")
+
+        # Determine dtype if not specified in kwargs
+        if 'dtype' not in kwargs:
+            if '.' not in first_data_line_content:
+                kwargs['dtype'] = np.int64
+            else:
+                kwargs['dtype'] = np.float64
 
         # Load data using numpy.loadtxt with the determined number of skipped header lines
         try:
@@ -1225,27 +1251,6 @@ class NestColumnReader:
         elif self.data.ndim != 2:
             raise ValueError("File could not be parsed correctly. Data is not 2-dimensional.")
 
-        # Create dictionary with column names and their indices
-        self.header_indices = {}
-        for i, col_name in enumerate(self.column_names):
-            self.header_indices[col_name] = i
-
-        # Add entries for the standard headers (even if not present in column_names)
-        self.standard_headers = ['sender', 'time_ms', 'time_steps', 'time_offset']
-        for header in self.standard_headers:
-            if header not in self.header_indices:
-                self.header_indices[header] = None
-
-        # Check if this is a NEST 3.x file, i.e., the headers
-        self.valid_nest3_file = False
-        if (self.header_indices['sender'] and
-                (self.header_indices['time_ms'] or
-                 (self.header_indices['time_steps'] and self.header_indices['time_offset']))):
-            self.valid_nest3_file = True
-
-        # Determine if there are any columns besides the standard headers
-        # For NEST 3.x, this indicates that the data must be a time series
-        self.nest3_contains_time_series = self.valid_nest3_file and (len(self.column_names) > len([h for h in self.standard_headers if h in self.column_names]))
 
     def get_columns(self, column_indices="all", condition=None, condition_column_index=None, sorting_column_indices=None):
         """
