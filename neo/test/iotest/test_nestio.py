@@ -715,6 +715,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
 #         self.assertEqual(len(seg.spiketrains), 50)
 #         self.assertEqual(len(seg.analogsignals), 50)
 
+# ... existing code ...
 
 class TestColumnIO(BaseTestIO, unittest.TestCase):
     ioclass = NestIO
@@ -724,11 +725,223 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
     def setUp(self):
         BaseTestIO.setUp(self)
 
-        # Open two files with many columns, one for NEST 2.x and one for NEST 3.x
+        # NEST 2.x file (no header)
         filename = self.get_local_path("nest/nest2/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
         self.testIO_v2 = NestColumnReader(filename=filename)
+        # NEST 3.x file (with header)
         filename = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
         self.testIO_v3 = NestColumnReader(filename=filename)
+        # Minimal NEST 3.x header, single data col, for edge cases
+        filename = self.get_local_path("nest/nest3/aeif_spikes_times-17-0.dat")
+        self.testIO_v3b = NestColumnReader(filename=filename)
+
+    def test_header_detection_nest3(self):
+        """
+        Test that a NEST 3.x file header is correctly parsed,
+        column names and indices are mapped, version detection is accurate,
+        and has_time_series is properly set.
+        """
+        cr = self.testIO_v3
+        self.assertTrue(cr.is_valid_nest3_file)
+        self.assertTrue(cr.nest_version.count(".") == 2)  # e.g., "3.6.0"
+        self.assertEqual(cr.backend_version, "2")
+        self.assertIsInstance(cr.column_names, list)
+        self.assertIsInstance(cr.header_indices, dict)
+        self.assertGreater(len(cr.column_names), 2)  # Expected: sender, time_ms, plus signals
+        self.assertIn("sender", cr.header_indices)
+        self.assertIn("time_ms", cr.header_indices)
+        self.assertTrue(cr.has_time_series)
+
+    def test_header_detection_nest2(self):
+        """
+        Test that a NEST 2.x file (no header) falls back to default values.
+        """
+        cr = self.testIO_v2
+        self.assertFalse(cr.is_valid_nest3_file)
+        self.assertEqual(cr.nest_version, "2.x")
+        self.assertEqual(cr.backend_version, "1")
+        self.assertEqual(cr.column_names, [])
+        self.assertEqual(cr.header_indices, {})
+        self.assertFalse(cr.has_time_series)
+
+    def test_realistic_header_detection_edge(self):
+        """
+        Files with NEST 3.x header but no nonstandard columns should still work, but has_time_series should be False.
+        """
+        cr = self.testIO_v3b
+        self.assertTrue(cr.is_valid_nest3_file)
+        # Usually, these files have 3 lines of header, last line = col names
+        self.assertIn("sender", cr.header_indices)
+        # Only standard columns likely present
+        count_non_std = sum(1 for k in cr.column_names if k not in cr.standard_headers)
+        self.assertFalse(cr.has_time_series or count_non_std > 0)
+
+    def test_malformed_header_ignored(self):
+        """
+        Checks that files with headers that do not match NEST 3.x format
+        raise warnings and revert to default values.
+        """
+        # We will simulate by modifying the header in a temp file
+        import tempfile, shutil
+        orig_path = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
+            # Write a bogus header that will not be recognized
+            tf.write("# FooBar header none\n# recording ascii X\n# bogus header\n1 2 3 4\n")
+            tf.flush()
+            # Copy rest of data from a real file for proper format
+            with open(orig_path) as realfile:
+                lines = realfile.readlines()
+                data_lines = [l for l in lines if not l.strip().startswith("#") and l.strip()]
+                tf.writelines(data_lines[:10])  # Just a few rows for test
+
+        # File should not be recognized as NEST3 file
+        cr = NestColumnReader(tf.name)
+        self.assertFalse(cr.is_valid_nest3_file)
+        self.assertEqual(cr.column_names, [])
+        self.assertEqual(cr.header_indices, {})
+        self.assertEqual(cr.nest_version, "2.x")
+        self.assertEqual(cr.backend_version, "1")
+        # Clean up temp file
+        os.remove(tf.name)
+
+    def test_duplicate_column_header_raises(self):
+        """
+        If a NEST 3.x file declares duplicate column names in header,
+        an exception is raised.
+        """
+        import tempfile, shutil
+        orig_path = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
+            with open(orig_path) as realfile:
+                lines = realfile.readlines()
+                # Use first 2 lines, then a duplicate column header
+                tf.write(lines[0])
+                tf.write(lines[1])
+                bad_header = "sender time_ms sender V_m\n"
+                tf.write(bad_header)
+                # some data
+                data_lines = [l for l in lines[3:] if l.strip()]
+                tf.writelines(data_lines[:2])
+            tf.flush()
+            # Should raise IOError
+            with self.assertRaises(IOError):
+                NestColumnReader(tf.name)
+        os.remove(tf.name)
+
+    def test_dtype_autodetection(self):
+        """
+        Test dtype is auto-detected as int or float if not provided.
+        """
+        # NEST 2.x GDF: times as floats
+        gdf_file = self.get_local_path("nest/nest2/0time-1255-0.gdf")
+        cr = NestColumnReader(gdf_file)
+        # Should be float64 if data lines have "."
+        self.assertEqual(cr.data.dtype, np.float64)
+        # If we hack the file to have only ints, it should auto-detect int64
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
+            tf.writelines([f"{i}\n" for i in range(10)])
+            tf.flush()
+            cr2 = NestColumnReader(tf.name)
+            self.assertEqual(cr2.data.dtype, np.int64)
+        os.remove(tf.name)
+
+    def test_data_loading_shape(self):
+        """
+        Data should always be loaded as 2D numpy array.
+        """
+        # 1D file
+        gdf_file = self.get_local_path("nest/nest2/0time-1255-0.gdf")
+        cr = NestColumnReader(gdf_file)
+        self.assertEqual(len(cr.data.shape), 2)
+        self.assertEqual(cr.data.shape[1], 1)
+        # Multi-column file: .dat with multiple columns
+        dat_file = self.get_local_path("nest/nest2/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
+        cr2 = NestColumnReader(dat_file)
+        self.assertEqual(len(cr2.data.shape), 2)
+        self.assertGreater(cr2.data.shape[1], 1)
+
+    def test_get_columns_errors(self):
+        """
+        Requesting columns outside range or with missing sorting columns raises ValueError.
+        """
+        cr = self.testIO_v2
+        ncol = cr.data.shape[1]
+        with self.assertRaises(ValueError):
+            cr.get_columns(column_indices=ncol + 1)
+        with self.assertRaises(ValueError):
+            cr.get_columns(sorting_column_indices=ncol + 1)
+
+    def test_get_columns_identity(self):
+        """
+        get_columns should return same data as .data with no args.
+        """
+        cr = self.testIO_v2
+        self.assertTrue(np.array_equal(cr.get_columns(), cr.data))
+
+    def test_get_columns_select_and_sort(self):
+        """
+        get_columns should select, sort, filter, or accept various forms of column/sort specification.
+        """
+        cr = self.testIO_v2
+        data = cr.data.copy()
+        # Select all columns, should match .data
+        allcols = cr.get_columns()
+        np.testing.assert_array_equal(allcols, data)
+        # Select second column
+        col = cr.get_columns(column_indices=1)
+        np.testing.assert_array_equal(col[:, 0], data[:, 1])
+        # Sorting: should sort by column values
+        for col_id in range(min(2, data.shape[1])):
+            sorted_data = cr.get_columns(sorting_column_indices=col_id)
+            self.assertTrue(np.all(np.diff(sorted_data[:, col_id]) >= 0) or sorted_data.shape[0]==0)
+        # Condition: select rows with odd first column, if column exists
+        if data.shape[1] and data[:,0].dtype in (np.float64, np.int64):
+            cond = lambda x: int(x) % 2 == 1
+            rows = cr.get_columns(condition=cond, condition_column_index=0)
+            for row in rows:
+                self.assertTrue(cond(row[0]))
+
+    def test_get_columns_warnings_and_errors(self):
+        """
+        get_columns should warn if condition_column_index given without a condition,
+        and error if condition is given without a condition_column_index.
+        """
+        cr = self.testIO_v2
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            cr.get_columns(condition_column_index=0)
+            assert any("no condition" in str(ww.message) for ww in w)
+        with self.assertRaises(ValueError):
+            cr.get_columns(condition=lambda x: True)
+
+    def test_column_names_and_indices_nest3(self):
+        """
+        For NEST 3.x files, the mapping from column_names to header_indices must be correct and unique.
+        """
+        cr = self.testIO_v3
+        self.assertEqual(len(cr.column_names), len(set(cr.column_names)))
+        for name in cr.column_names:
+            idx = cr.header_indices[name]
+            self.assertTrue(0 <= idx < len(cr.column_names))
+        # header_indices must have an entry for every standard header, even if None
+        for h in cr.standard_headers:
+            self.assertIn(h, cr.header_indices)
+
+    def test_standard_headers_and_has_time_series(self):
+        """
+        Check that has_time_series is set correctly for a file with >2 columns,
+        and that standard_headers are correct.
+        """
+        cr = self.testIO_v3
+        # All standard headers are present (sender, time_ms, etc.)
+        self.assertTrue(any(h in cr.column_names for h in cr.standard_headers))
+        num_signals = len([name for name in cr.column_names if name not in cr.standard_headers])
+        if num_signals > 0:
+            self.assertTrue(cr.has_time_series)
+        else:
+            self.assertFalse(cr.has_time_series)
 
     def test_no_arguments(self):
         """

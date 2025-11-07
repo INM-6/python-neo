@@ -462,6 +462,7 @@ class NestIO(BaseIO):
                         f"contains more than 2 columns. "
                         f"Skipping loading file as Neo SpikeTrain object."
                     )
+                    continue
 
 
             # Assert that the file contains spike times -- this condition must always be true
