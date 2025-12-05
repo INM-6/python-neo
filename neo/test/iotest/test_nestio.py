@@ -4,6 +4,7 @@ Tests of neo.io.nestio
 import warnings
 import unittest
 import os
+import tempfile
 import quantities as pq
 import numpy as np
 from neo.io.nestio import NestColumnReader
@@ -803,7 +804,6 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         raise warnings and revert to default values.
         """
         # We will simulate by modifying the header in a temp file
-        import tempfile, shutil
         orig_path = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
             # Write a bogus header that will not be recognized
@@ -831,7 +831,6 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         If a NEST 3.x file declares duplicate column names in header,
         an exception is raised.
         """
-        import tempfile, shutil
         orig_path = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
             with open(orig_path) as realfile:
