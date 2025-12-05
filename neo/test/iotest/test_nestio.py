@@ -719,7 +719,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
 
 # ... existing code ...
 
-class TestColumnIO(BaseTestIO, unittest.TestCase):
+class TestNestColumnReader(BaseTestIO, unittest.TestCase):
     ioclass = NestIO
     entities_to_test = []
     entities_to_download = ["nest"]
@@ -814,6 +814,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
                 lines = realfile.readlines()
                 data_lines = [l for l in lines if not l.strip().startswith("#") and l.strip()]
                 tf.writelines(data_lines[:10])  # Just a few rows for test
+            tf.flush()
 
         # File should not be recognized as NEST 3.x file, but instead follow NEST 2.x logic
         cr = NestColumnReader(tf.name)
@@ -840,13 +841,17 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
                 tf.write(lines[1])
                 bad_header = "sender time_ms sender V_m\n"
                 tf.write(bad_header)
-                # some data
+
+                # Copy some of the actual data
                 data_lines = [l for l in lines[3:] if l.strip()]
-                tf.writelines(data_lines[:2])
+                tf.writelines(data_lines[:5])
             tf.flush()
+
             # Should raise IOError
             with self.assertRaises(IOError):
                 NestColumnReader(tf.name)
+
+        # Clean up temp file
         os.remove(tf.name)
 
     def test_dtype_autodetection(self):
