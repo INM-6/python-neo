@@ -3,6 +3,7 @@ Tests of neo.io.nestio
 """
 import warnings
 import unittest
+import os
 import quantities as pq
 import numpy as np
 from neo.io.nestio import NestColumnReader
@@ -728,12 +729,18 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         # NEST 2.x file (no header)
         filename = self.get_local_path("nest/nest2/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
         self.testIO_v2 = NestColumnReader(filename=filename)
-        # NEST 3.x file (with header)
+
+        # NEST 3.x file (with header) containing time series of multimeter
         filename = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
-        self.testIO_v3 = NestColumnReader(filename=filename)
-        # Minimal NEST 3.x header, single data col, for edge cases
+        self.testIO_v3_multimeter = NestColumnReader(filename=filename)
+
+        # NEST 3.x file (with header) containing only spike times
         filename = self.get_local_path("nest/nest3/aeif_spikes_times-17-0.dat")
-        self.testIO_v3b = NestColumnReader(filename=filename)
+        self.testIO_v3_spikerecorder = NestColumnReader(filename=filename)
+
+        # NEST 3.x file (with header) containing only spike times with offset
+        filename = self.get_local_path("nest/nest3/precise_spikes_steps-20-0.dat")
+        self.testIO_v3_spikerecorder_precise = NestColumnReader(filename=filename)
 
     def test_header_detection_nest3(self):
         """
@@ -741,7 +748,8 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         column names and indices are mapped, version detection is accurate,
         and has_time_series is properly set.
         """
-        cr = self.testIO_v3
+        # Time series of multimeter
+        cr = self.testIO_v3_multimeter
         self.assertTrue(cr.is_valid_nest3_file)
         self.assertTrue(cr.nest_version.count(".") == 2)  # e.g., "3.6.0"
         self.assertEqual(cr.backend_version, "2")
@@ -751,6 +759,31 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         self.assertIn("sender", cr.header_indices)
         self.assertIn("time_ms", cr.header_indices)
         self.assertTrue(cr.has_time_series)
+
+        # Spike times only
+        cr = self.testIO_v3_spikerecorder
+        self.assertTrue(cr.is_valid_nest3_file)
+        self.assertTrue(cr.nest_version.count(".") == 2)  # e.g., "3.6.0"
+        self.assertEqual(cr.backend_version, "2")
+        self.assertIsInstance(cr.column_names, list)
+        self.assertIsInstance(cr.header_indices, dict)
+        self.assertEqual(len(cr.column_names), 2)  # Expected: sender, time_ms, plus signals
+        self.assertIn("sender", cr.header_indices)
+        self.assertIn("time_ms", cr.header_indices)
+        self.assertFalse(cr.has_time_series)
+
+        # Spike times with offset parameter
+        cr = self.testIO_v3_spikerecorder_precise
+        self.assertTrue(cr.is_valid_nest3_file)
+        self.assertTrue(cr.nest_version.count(".") == 2)  # e.g., "3.6.0"
+        self.assertEqual(cr.backend_version, "2")
+        self.assertIsInstance(cr.column_names, list)
+        self.assertIsInstance(cr.header_indices, dict)
+        self.assertEqual(len(cr.column_names), 3)  # Expected: sender, time_ms, plus signals
+        self.assertIn("sender", cr.header_indices)
+        self.assertIn("time_ms", cr.header_indices)
+        self.assertIn("time_offset", cr.header_indices)
+        self.assertFalse(cr.has_time_series)
 
     def test_header_detection_nest2(self):
         """
@@ -764,18 +797,6 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         self.assertEqual(cr.header_indices, {})
         self.assertFalse(cr.has_time_series)
 
-    def test_realistic_header_detection_edge(self):
-        """
-        Files with NEST 3.x header but no nonstandard columns should still work, but has_time_series should be False.
-        """
-        cr = self.testIO_v3b
-        self.assertTrue(cr.is_valid_nest3_file)
-        # Usually, these files have 3 lines of header, last line = col names
-        self.assertIn("sender", cr.header_indices)
-        # Only standard columns likely present
-        count_non_std = sum(1 for k in cr.column_names if k not in cr.standard_headers)
-        self.assertFalse(cr.has_time_series or count_non_std > 0)
-
     def test_malformed_header_ignored(self):
         """
         Checks that files with headers that do not match NEST 3.x format
@@ -786,7 +807,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         orig_path = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
             # Write a bogus header that will not be recognized
-            tf.write("# FooBar header none\n# recording ascii X\n# bogus header\n1 2 3 4\n")
+            tf.write("# FooBar header none\n# recording ascii X\n# bogus header\n")
             tf.flush()
             # Copy rest of data from a real file for proper format
             with open(orig_path) as realfile:
@@ -794,13 +815,14 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
                 data_lines = [l for l in lines if not l.strip().startswith("#") and l.strip()]
                 tf.writelines(data_lines[:10])  # Just a few rows for test
 
-        # File should not be recognized as NEST3 file
+        # File should not be recognized as NEST 3.x file, but instead follow NEST 2.x logic
         cr = NestColumnReader(tf.name)
         self.assertFalse(cr.is_valid_nest3_file)
-        self.assertEqual(cr.column_names, [])
-        self.assertEqual(cr.header_indices, {})
         self.assertEqual(cr.nest_version, "2.x")
         self.assertEqual(cr.backend_version, "1")
+        self.assertEqual(cr.column_names, [])
+        self.assertEqual(cr.header_indices, {})
+
         # Clean up temp file
         os.remove(tf.name)
 
@@ -920,7 +942,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         """
         For NEST 3.x files, the mapping from column_names to header_indices must be correct and unique.
         """
-        cr = self.testIO_v3
+        cr = self.testIO_v3_multimeter
         self.assertEqual(len(cr.column_names), len(set(cr.column_names)))
         for name in cr.column_names:
             idx = cr.header_indices[name]
@@ -934,7 +956,7 @@ class TestColumnIO(BaseTestIO, unittest.TestCase):
         Check that has_time_series is set correctly for a file with >2 columns,
         and that standard_headers are correct.
         """
-        cr = self.testIO_v3
+        cr = self.testIO_v3_multimeter
         # All standard headers are present (sender, time_ms, etc.)
         self.assertTrue(any(h in cr.column_names for h in cr.standard_headers))
         num_signals = len([name for name in cr.column_names if name not in cr.standard_headers])
