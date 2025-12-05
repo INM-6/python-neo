@@ -883,21 +883,16 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         cr = NestColumnReader(filename=filename, dtype=np.float64)
         self.assertEqual(cr.data.dtype, np.float64)
 
-
     def test_data_loading_shape(self):
         """
         Data should always be loaded as 2D numpy array.
         """
         # 1D file
-        gdf_file = self.get_local_path("nest/nest2/0time-1255-0.gdf")
-        cr = NestColumnReader(gdf_file)
-        self.assertEqual(len(cr.data.shape), 2)
-        self.assertEqual(cr.data.shape[1], 1)
+        self.assertEqual(len(self.testIO_v2_spikerecorder.data.shape), 2)
+        self.assertEqual(self.testIO_v2_spikerecorder.data.shape[1], 1)
         # Multi-column file: .dat with multiple columns
-        dat_file = self.get_local_path("nest/nest2/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
-        cr2 = NestColumnReader(dat_file)
-        self.assertEqual(len(cr2.data.shape), 2)
-        self.assertGreater(cr2.data.shape[1], 1)
+        self.assertEqual(len(self.testIO_v2_multimeter.data.shape), 2)
+        self.assertGreater(self.testIO_v2_multimeter.data.shape[1], 4)
 
     def test_get_columns_errors(self):
         """
