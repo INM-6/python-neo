@@ -729,7 +729,13 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
 
         # NEST 2.x file (no header)
         filename = self.get_local_path("nest/nest2/0gid-1time-2Vm-3gex-4gin-1260-0.dat")
-        self.testIO_v2 = NestColumnReader(filename=filename)
+        self.testIO_v2_multimeter = NestColumnReader(filename=filename)
+
+        filename = self.get_local_path("nest/nest2/0time-1255-0.gdf")
+        self.testIO_v2_spikerecorder = NestColumnReader(filename=filename)
+
+        filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
+        self.testIO_v2_spikerecorder_steps = NestColumnReader(filename=filename)
 
         # NEST 3.x file (with header) containing time series of multimeter
         filename = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
@@ -790,7 +796,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         """
         Test that a NEST 2.x file (no header) falls back to default values.
         """
-        cr = self.testIO_v2
+        cr = self.testIO_v2_multimeter
         self.assertFalse(cr.is_valid_nest3_file)
         self.assertEqual(cr.nest_version, "2.x")
         self.assertEqual(cr.backend_version, "1")
@@ -856,21 +862,27 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
 
     def test_dtype_autodetection(self):
         """
-        Test dtype is auto-detected as int or float if not provided.
+        Test dtype is auto-detected as int or float if not provided, and if
+        overwriting the dtype works.
         """
-        # NEST 2.x GDF: times as floats
-        gdf_file = self.get_local_path("nest/nest2/0time-1255-0.gdf")
-        cr = NestColumnReader(gdf_file)
+        # NEST 2.x: times as float ms
         # Should be float64 if data lines have "."
+        self.assertEqual(self.testIO_v2_spikerecorder.data.dtype, np.float64)
+
+        # NEST 2.x: times as integer steps
+        self.assertEqual(self.testIO_v2_spikerecorder_steps.data.dtype, np.int64)
+
+        # NEST 3.x: times as float ms
+        self.assertEqual(self.testIO_v3_spikerecorder.data.dtype, np.float64)
+
+        # NEST 3.x: times as float precise steps
+        self.assertEqual(self.testIO_v3_spikerecorder.data.dtype, np.float64)
+
+        # NEST 2.x: overwriting the dtype should work
+        filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
+        cr = NestColumnReader(filename=filename, dtype=np.float64)
         self.assertEqual(cr.data.dtype, np.float64)
-        # If we hack the file to have only ints, it should auto-detect int64
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
-            tf.writelines([f"{i}\n" for i in range(10)])
-            tf.flush()
-            cr2 = NestColumnReader(tf.name)
-            self.assertEqual(cr2.data.dtype, np.int64)
-        os.remove(tf.name)
+
 
     def test_data_loading_shape(self):
         """
@@ -891,7 +903,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         """
         Requesting columns outside range or with missing sorting columns raises ValueError.
         """
-        cr = self.testIO_v2
+        cr = self.testIO_v2_multimeter
         ncol = cr.data.shape[1]
         with self.assertRaises(ValueError):
             cr.get_columns(column_indices=ncol + 1)
@@ -902,14 +914,14 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         """
         get_columns should return same data as .data with no args.
         """
-        cr = self.testIO_v2
+        cr = self.testIO_v2_multimeter
         self.assertTrue(np.array_equal(cr.get_columns(), cr.data))
 
     def test_get_columns_select_and_sort(self):
         """
         get_columns should select, sort, filter, or accept various forms of column/sort specification.
         """
-        cr = self.testIO_v2
+        cr = self.testIO_v2_multimeter
         data = cr.data.copy()
         # Select all columns, should match .data
         allcols = cr.get_columns()
@@ -933,7 +945,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         get_columns should warn if condition_column_index given without a condition,
         and error if condition is given without a condition_column_index.
         """
-        cr = self.testIO_v2
+        cr = self.testIO_v2_multimeter
         import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -973,24 +985,24 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         """
         Test if data can be read using the default keyword arguments.
         """
-        columns = self.testIO_v2.get_columns()
-        expected = self.testIO_v2.data
+        columns = self.testIO_v2_multimeter.get_columns()
+        expected = self.testIO_v2_multimeter.data
         np.testing.assert_array_equal(columns, expected)
 
     def test_single_column_id(self):
         """
         Test if the column_ids keywords works properly.
         """
-        column = self.testIO_v2.get_columns(column_indices=1)
-        expected = self.testIO_v2.data[:, [1]]
+        column = self.testIO_v2_multimeter.get_columns(column_indices=1)
+        expected = self.testIO_v2_multimeter.data[:, [1]]
         np.testing.assert_array_equal(column, expected)
 
     def test_multiple_column_ids(self):
         """
         Test if multiple columns can be read at the same time.
         """
-        columns = self.testIO_v2.get_columns(column_indices=range(2))
-        expected = self.testIO_v2.data[:, [0, 1]]
+        columns = self.testIO_v2_multimeter.get_columns(column_indices=range(2))
+        expected = self.testIO_v2_multimeter.data[:, [0, 1]]
         np.testing.assert_array_equal(columns, expected)
 
     def test_no_condition(self):
@@ -1000,7 +1012,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             # Cause all warnings to always be triggered.
             warnings.simplefilter("always")
-            self.testIO_v2.get_columns(condition_column_index=0)
+            self.testIO_v2_multimeter.get_columns(condition_column_index=0)
             # Verify number and content of warning
             assert len(w) == 1
             assert "no condition" in str(w[-1].message)
@@ -1010,7 +1022,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         Test if a missing condition column leads to an error
         """
         with self.assertRaises(ValueError) as context:
-            self.testIO_v2.get_columns(condition=lambda x: True)
+            self.testIO_v2_multimeter.get_columns(condition=lambda x: True)
 
         self.assertTrue("but condition_column is not provided" in str(context.exception))
 
@@ -1024,9 +1036,9 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         def condition_function(x):
             return x > 10
 
-        result = self.testIO_v2.get_columns(condition=condition_function, condition_column_index=0)
-        selected_ids = np.where(condition_function(self.testIO_v2.data[:, condition_column]))[0]
-        expected = self.testIO_v2.data[selected_ids, :]
+        result = self.testIO_v2_multimeter.get_columns(condition=condition_function, condition_column_index=0)
+        selected_ids = np.where(condition_function(self.testIO_v2_multimeter.data[:, condition_column]))[0]
+        expected = self.testIO_v2_multimeter.data[selected_ids, :]
 
         np.testing.assert_array_equal(result, expected)
 
@@ -1040,33 +1052,33 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         # Test sorting for the first two columns of the file to correctly
         # identify potential problems in sorting column 0.
         for column_i in [0, 1]:
-            result = self.testIO_v2.get_columns(sorting_column_indices=column_i)
+            result = self.testIO_v2_multimeter.get_columns(sorting_column_indices=column_i)
             assert len(result) > 0
             assert all(np.diff(result[:, column_i]) >= 0)
 
         # Same procedure, supplying sorting with a list
         for column_i in [[0], [1]]:
-            result = self.testIO_v2.get_columns(sorting_column_indices=column_i)
+            result = self.testIO_v2_multimeter.get_columns(sorting_column_indices=column_i)
             assert len(result) > 0
             assert all(np.diff(result[:, column_i[0]]) >= 0)
 
         # Same procedure, supplying sorting with a list of multiple columns of various priority
         # In this list, the last column has the highest priority.
         for column_i in [[0, 1], [1, 0], [1, 0, 2]]:
-            result = self.testIO_v2.get_columns(sorting_column_indices=column_i)
+            result = self.testIO_v2_multimeter.get_columns(sorting_column_indices=column_i)
             assert len(result) > 0
             assert all(np.diff(result[:, column_i[-1]]) >= 0)
 
             # Additionally, create a checksum for the sorted and unsorted returns
             # to ensure all rows remain intact (same row sums)
             checksum = np.sort(np.sum(result, axis=1))
-            result_unsorted = self.testIO_v2.get_columns()
+            result_unsorted = self.testIO_v2_multimeter.get_columns()
             checksum_unsorted = np.sort(np.sum(result_unsorted, axis=1))
             assert np.all(checksum == checksum_unsorted)
 
         # Same procedure, this time requesting only the highest priority column.
         for column_i in [[0, 1], [1, 0], [1, 0, 2]]:
-            result = self.testIO_v2.get_columns(column_indices=column_i[-1], sorting_column_indices=column_i)
+            result = self.testIO_v2_multimeter.get_columns(column_indices=column_i[-1], sorting_column_indices=column_i)
             assert len(result) > 0
             assert all(np.diff(result[:, 0]) >= 0)
 
