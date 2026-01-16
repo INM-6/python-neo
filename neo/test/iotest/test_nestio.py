@@ -741,6 +741,14 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
         self.testIO_v3_multimeter = NestColumnReader(filename=filename)
 
+        # NEST 3.x file (with header) containing time series of multimeter
+        filename = self.get_local_path("nest/nest3/multimeter_res-24-0.dat")
+        self.testIO_v3_multimeter_precise = NestColumnReader(filename=filename)
+
+        # NEST 3.x file (with header) containing time series of multimeter
+        filename = self.get_local_path("nest/nest3/voltmeter_times-21-0.dat")
+        self.testIO_v3_voltmeter = NestColumnReader(filename=filename)
+
         # NEST 3.x file (with header) containing only spike times
         filename = self.get_local_path("nest/nest3/aeif_spikes_times-17-0.dat")
         self.testIO_v3_spikerecorder = NestColumnReader(filename=filename)
@@ -1040,14 +1048,14 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         Check that has_time_series is set correctly for a file with >2 columns,
         and that standard_headers are correct.
         """
-        cr = self.testIO_v3_multimeter
-        # All standard headers are present (sender, time_ms, etc.)
-        self.assertTrue(any(h in cr.column_names for h in cr.standard_headers))
-        num_signals = len([name for name in cr.column_names if name not in cr.standard_headers])
-        if num_signals > 0:
-            self.assertTrue(cr.has_time_series)
-        else:
-            self.assertFalse(cr.has_time_series)
+        for cr in [self.testIO_v3_multimeter, self.testIO_v3_multimeter_precise, self.testIO_v3_voltmeter]:
+            # At least one standard header is present (sender, time_ms, etc.)
+            self.assertTrue(any(h in cr.column_names for h in cr.standard_headers))
+            num_signals = len([name for name in cr.column_names if name not in cr.standard_headers])
+            if num_signals > 0:
+                self.assertTrue(cr.has_time_series)
+            else:
+                self.assertFalse(cr.has_time_series)
 
     def test_no_arguments(self):
         """
