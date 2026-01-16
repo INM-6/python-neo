@@ -1291,9 +1291,10 @@ class NestColumnReader:
             ID of the column on which the condition function is applied to. If None and a condition function is
             specified, an error is raised.
             Default: None
-        sorting_column_indices : int or list of int,
-            Column IDs to sort output by. List entries have to be ordered by increasing sorting priority! If None, no
-            sorting is applied.
+        sorting_column_indices : int, list of int,
+            Column IDs to sort output by. List entries have to be ordered by increasing sorting priority, i.e., the
+            output is first sorted according to the column ID in sorting_column_indices[0], then
+            sorting_column_indices[1],...! If None, no sorting is applied.
             Default: None
 
         Returns
