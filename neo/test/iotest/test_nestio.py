@@ -917,33 +917,67 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
 
     def test_get_columns_identity(self):
         """
-        get_columns should return same data as .data with no args.
+        get_columns() should return same data as .data with no args.
         """
         cr = self.testIO_v2_multimeter
-        self.assertTrue(np.array_equal(cr.get_columns(), cr.data))
+        np.testing.assert_array_equal(cr.get_columns(), cr.data)
+
+        cr = self.testIO_v3_multimeter
+        np.testing.assert_array_equal(cr.get_columns(), cr.data)
 
     def test_get_columns_select_and_sort(self):
         """
-        get_columns should select, sort, filter, or accept various forms of column/sort specification.
+        get_columns() should select, sort, filter, or accept various forms of column/sort specification.
         """
-        cr = self.testIO_v2_multimeter
-        data = cr.data.copy()
-        # Select all columns, should match .data
-        allcols = cr.get_columns()
-        np.testing.assert_array_equal(allcols, data)
-        # Select second column
-        col = cr.get_columns(column_indices=1)
-        np.testing.assert_array_equal(col[:, 0], data[:, 1])
-        # Sorting: should sort by column values
-        for col_id in range(min(2, data.shape[1])):
-            sorted_data = cr.get_columns(sorting_column_indices=col_id)
-            self.assertTrue(np.all(np.diff(sorted_data[:, col_id]) >= 0) or sorted_data.shape[0]==0)
-        # Condition: select rows with odd first column, if column exists
-        if data.shape[1] and data[:,0].dtype in (np.float64, np.int64):
-            cond = lambda x: int(x) % 2 == 1
-            rows = cr.get_columns(condition=cond, condition_column_index=0)
-            for row in rows:
-                self.assertTrue(cond(row[0]))
+        for cr in [self.testIO_v2_multimeter, self.testIO_v3_multimeter]:
+            # Select second column
+            col = cr.get_columns(column_indices=1)
+            np.testing.assert_array_equal(col[:, 0], cr.data[:, 1])
+
+            # Sorting: should sort by column values
+            for col_id in range(min(2, cr.data.shape[1])):
+                sorted_data = cr.get_columns(sorting_column_indices=col_id)
+                # Make sure sorted column is non-decreasing
+                self.assertTrue(np.all(np.diff(sorted_data[:, col_id]) >= 0))
+                # Make sure first column is correctly sorted according to sorting_column_indices
+                np.testing.assert_array_equal(sorted_data[:, 0], cr.data[np.argsort(cr.data[:, col_id]), 0])
+
+            # Condition: select rows with odd first column, if column exists
+            if cr.data.shape[1] and cr.data[:,0].dtype in (np.float64, np.int64):
+                odd_condition = lambda x: int(x) % 2 == 1
+                conditioned_data = cr.get_columns(condition=odd_condition, condition_column_index=0)
+                # Test all returned rows evaluate according the the odd condition
+                for row in conditioned_data:
+                    self.assertTrue(odd_condition(row[0]))
+                # Test that a manual sorting yields the same array
+                valid_indices = list(map(odd_condition, cr.data[:, 0]))
+                np.testing.assert_array_equal(conditioned_data, cr.data[valid_indices ,:])
+
+            # All together, sorting only column 1
+            if cr.data.shape[1] and cr.data[:,0].dtype in (np.float64, np.int64):
+                odd_condition = lambda x: int(x) % 2 == 1
+                sorted_conditioned_data = cr.get_columns(column_indices=[0, 1], sorting_column_indices=0, condition=odd_condition, condition_column_index=0)
+                # Test all returned rows evaluate according the the odd condition
+                for row in sorted_conditioned_data:
+                    self.assertTrue(odd_condition(row[0]))
+                # Test that a manual sorting yields the same array
+                sorted_indices = np.argsort(cr.data[:, 0])
+                valid_indices = list(map(odd_condition, cr.data[sorted_indices, 0]))
+                sorted_valid_indices = sorted_indices[valid_indices]
+                np.testing.assert_array_equal(sorted(sorted_conditioned_data, key=lambda x : x[1]), sorted(cr.data[sorted_valid_indices , 0:2], key=lambda x : x[1]))
+
+            # All together, sorting by both columns
+            if cr.data.shape[1] and cr.data[:,0].dtype in (np.float64, np.int64):
+                odd_condition = lambda x: int(x) % 2 == 1
+                sorted_conditioned_data = cr.get_columns(column_indices=[0, 1], sorting_column_indices=[0,1], condition=odd_condition, condition_column_index=0)
+                # Test all returned rows evaluate according the the odd condition
+                for row in sorted_conditioned_data:
+                    self.assertTrue(odd_condition(row[0]))
+                # Test that a manual sorting yields the same array
+                sorted_indices = np.argsort(cr.data[:, 0])
+                valid_indices = list(map(odd_condition, cr.data[sorted_indices, 0]))
+                sorted_valid_indices = sorted_indices[valid_indices]
+                np.testing.assert_array_equal(sorted_conditioned_data, sorted(cr.data[sorted_valid_indices , 0:2], key=lambda x : x[1]))
 
     def test_get_columns_warnings_and_errors(self):
         """
