@@ -922,9 +922,9 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         cr = self.testIO_v3_multimeter
         np.testing.assert_array_equal(cr.get_columns(), cr.data)
 
-    def test_get_columns_select_and_sort(self):
+    def test_get_columns_basic_output(self):
         """
-        get_columns() should selecting columns only
+        Test basic selection of get_columns()
         """
         for cr in [self.testIO_v2_multimeter, self.testIO_v3_multimeter, self.testIO_v3_spikerecorder_precise]:
             # Select second column only
@@ -933,7 +933,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
             # Select first and second column
             np.testing.assert_array_equal(cr.get_columns(column_indices=[0,1]), cr.data[:, [0, 1]])
 
-            # Select first and second column in reverse order
+            # Select the first and second column in reverse order
             np.testing.assert_array_equal(cr.get_columns(column_indices=[1,0]), cr.data[:, [1, 0]])
 
     def test_get_columns_select_and_sort(self):
@@ -941,16 +941,18 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         get_columns() should select, sort, filter, or accept various forms of column/sort specification.
         """
         # Condition function used in tests
-        odd_condition = lambda x: int(x) % 2 == 1
+        odd_condition = lambda x: (int(x) % 2) == 1
 
         for cr in [self.testIO_v2_multimeter, self.testIO_v3_multimeter, self.testIO_v3_spikerecorder_precise]:
             # Sorting only: should sort by column values
             for sort_col_id in range(min(2, cr.data.shape[1])):
                 sorted_data = cr.get_columns(sorting_column_indices=sort_col_id)
-                # Make sure sorted column is non-decreasing
+                # Make sure the sorted column is non-decreasing
                 self.assertTrue(np.all(np.diff(sorted_data[:, sort_col_id]) >= 0))
-                # Make sure first column is correctly sorted according to sorting_column_indices
-                np.testing.assert_array_equal(sorted_data[:, 0], cr.data[np.argsort(cr.data[:, sort_col_id]), 0])
+                # Make sure the first column is correctly sorted according to sorting_column_indices
+                np.testing.assert_array_equal(
+                    sorted_data[:, 0],
+                    cr.data[np.argsort(cr.data[:, sort_col_id]), 0])
 
             # Condition only: select rows with odd first column, if column exists
             cond_col_id = 0
@@ -970,7 +972,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
 
             # Test each complex parameter set
             for col_ids, cond_col_id, sort_col_id in zip(col_ids, cond_col_ids, sort_col_ids):
-                # Determine the column that is the
+                # Determine the column that is the highest priority for sorting
                 if isinstance(sort_col_id, list):
                     sort_col_id_max_priority = sort_col_id[-1]
                 else:
@@ -985,18 +987,21 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
                     column_indices=col_ids,
                     sorting_column_indices=sort_col_id,
                     condition=odd_condition, condition_column_index=cond_col_id)
+
                 # Make sure that the sorted column is non-decreasing
                 self.assertTrue(np.all(np.diff(sorted_conditioned_data[:, sort_col_id_max_priority_swapped]) >= 0))
+
                 # Test all that all returned rows evaluate according to the odd condition
                 for row in sorted_conditioned_data:
                     self.assertTrue(odd_condition(row[cond_col_id_swapped]))
+
                 # Test that a manual sorting yields the same array
-                valid_indices = list(map(odd_condition, cr.data[:, cond_col_id]))
                 # Note: In a scenario where sorting is done by one column only, the order of other columns may still be
                 # arbitrary depending on the sorting algorithm. The current implementation of the ground truth sorting
                 # below using the sorted function replicates the sorting done by the IO. However, changes to the IO may
                 # break this test without violating the doc string. However, it will tell you that the IO chooses a
-                # different sort strategy.
+                # different sorting strategy.
+                valid_indices = list(map(odd_condition, cr.data[:, cond_col_id]))
                 np.testing.assert_array_equal(
                     sorted_conditioned_data,
                     np.array(sorted(cr.data[valid_indices , 0:2], key=lambda x : x[sort_col_id_max_priority]))[:, col_ids])
@@ -1004,14 +1009,14 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
     def test_get_columns_warnings_and_errors(self):
         """
         get_columns should warn if condition_column_index given without a condition,
-        and error if condition is given without a condition_column_index.
+        and error if a condition is given without a condition_column_index.
         """
         cr = self.testIO_v2_multimeter
         import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             cr.get_columns(condition_column_index=0)
-            assert any("no condition" in str(ww.message) for ww in w)
+            self.assertTrue(any("no condition" in str(ww.message) for ww in w))
         with self.assertRaises(ValueError):
             cr.get_columns(condition=lambda x: True)
 
@@ -1020,7 +1025,9 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         For NEST 3.x files, the mapping from column_names to header_indices must be correct and unique.
         """
         cr = self.testIO_v3_multimeter
+        # Test unique column names
         self.assertEqual(len(cr.column_names), len(set(cr.column_names)))
+        # Test all header_indicies point to a valid column ID
         for name in cr.column_names:
             idx = cr.header_indices[name]
             self.assertTrue(0 <= idx < len(cr.column_names))
