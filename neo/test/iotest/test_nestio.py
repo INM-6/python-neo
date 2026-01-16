@@ -930,13 +930,20 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         cr = self.testIO_v3_multimeter
         np.testing.assert_array_equal(cr.get_columns(), cr.data)
 
+    def test_no_arguments(self):
+        """
+        Test if data can be read using the default keyword arguments.
+        """
+        cr = self.testIO_v2_multimeter
+        np.testing.assert_array_equal(cr.get_columns(), cr.data)
+
     def test_get_columns_basic_output(self):
         """
         Test basic selection of get_columns()
         """
         for cr in [self.testIO_v2_multimeter, self.testIO_v3_multimeter, self.testIO_v3_spikerecorder_precise]:
             # Select second column only
-            np.testing.assert_array_equal(cr.get_columns(column_indices=1)[:,0], cr.data[:, 1])
+            np.testing.assert_array_equal(cr.get_columns(column_indices=1), cr.data[:, [1]])
 
             # Select first and second column
             np.testing.assert_array_equal(cr.get_columns(column_indices=[0,1]), cr.data[:, [0, 1]])
@@ -1057,29 +1064,6 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
             else:
                 self.assertFalse(cr.has_time_series)
 
-    def test_no_arguments(self):
-        """
-        Test if data can be read using the default keyword arguments.
-        """
-        columns = self.testIO_v2_multimeter.get_columns()
-        expected = self.testIO_v2_multimeter.data
-        np.testing.assert_array_equal(columns, expected)
-
-    def test_single_column_id(self):
-        """
-        Test if the column_ids keywords works properly.
-        """
-        column = self.testIO_v2_multimeter.get_columns(column_indices=1)
-        expected = self.testIO_v2_multimeter.data[:, [1]]
-        np.testing.assert_array_equal(column, expected)
-
-    def test_multiple_column_ids(self):
-        """
-        Test if multiple columns can be read at the same time.
-        """
-        columns = self.testIO_v2_multimeter.get_columns(column_indices=range(2))
-        expected = self.testIO_v2_multimeter.data[:, [0, 1]]
-        np.testing.assert_array_equal(columns, expected)
 
     def test_no_condition(self):
         """
