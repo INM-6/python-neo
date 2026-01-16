@@ -844,6 +844,68 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         # Clean up temp file
         os.remove(tf.name)
 
+    def test_specific_data_loading(self):
+        """
+        Tests if the contents of a loaded file is in fact read in correctly,
+        i.e., if the `data` attribute and the get_columns() method return correct
+        data (the first three lines of text).
+        """
+        # testIO_v3_multimeter
+        # Content:
+        # 2       1.000   0.000   0.000   -70.600 0.000
+        # 3       1.000   0.000   0.000   -70.600 0.000
+        # 4       1.000   0.000   0.000   -70.600 0.000
+        cr = self.testIO_v3_multimeter
+        expected = np.array([
+            [2, 1.0, 0.0, 0.0, -70.6, 0.0],
+            [3, 1.0, 0.0, 0.0, -70.6, 0.0],
+            [4, 1.0, 0.0, 0.0, -70.6, 0.0]
+        ])
+        np.testing.assert_array_almost_equal(cr.data[:3], expected)
+        np.testing.assert_array_almost_equal(cr.get_columns()[:3], expected)
+
+        # testIO_v3_spikerecorder
+        # Content:
+        # 2       4.700
+        # 3       4.500
+        # 4       4.500
+        cr = self.testIO_v3_spikerecorder
+        expected = np.array([
+            [2, 4.7],
+            [3, 4.5],
+            [4, 4.5]
+        ])
+        np.testing.assert_array_almost_equal(cr.data[:3], expected)
+        np.testing.assert_array_almost_equal(cr.get_columns()[:3], expected)
+
+        # testIO_v2_multimeter
+        # Content:
+        # 1       405.000 -55.383 6.436   0.483
+        # 2       405.000 -55.237 6.125   0.975
+        # 3       405.000 -55.169 6.192   0.690
+        cr = self.testIO_v2_multimeter
+        expected = np.array([
+            [1, 405.0, -55.383, 6.436, 0.483],
+            [2, 405.0, -55.237, 6.125, 0.975],
+            [3, 405.0, -55.169, 6.192, 0.690]
+        ])
+        np.testing.assert_array_almost_equal(cr.data[:3], expected)
+        np.testing.assert_array_almost_equal(cr.get_columns()[:3], expected)
+
+        # testIO_v2_spikerecorder
+        # Content:
+        # 400.700
+        # 400.800
+        # 401.600
+        cr = self.testIO_v2_spikerecorder
+        expected = np.array([
+            [400.7],
+            [400.8],
+            [401.6]
+        ])
+        np.testing.assert_array_almost_equal(cr.data[:3], expected)
+        np.testing.assert_array_almost_equal(cr.get_columns()[:3], expected)
+
     def test_duplicate_column_header_raises(self):
         """
         If a NEST 3.x file declares duplicate column names in header,
@@ -951,76 +1013,6 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
             # Select the first and second column in reverse order
             np.testing.assert_array_equal(cr.get_columns(column_indices=[1,0]), cr.data[:, [1, 0]])
 
-    def test_get_columns_select_and_sort(self):
-        """
-        get_columns() should select, sort, filter, or accept various forms of column/sort specification.
-        """
-        # Condition function used in tests
-        odd_condition = lambda x: (int(x) % 2) == 1
-
-        for cr in [self.testIO_v2_multimeter, self.testIO_v3_multimeter, self.testIO_v3_spikerecorder_precise]:
-            # Sorting only: should sort by column values
-            for sort_col_id in range(min(2, cr.data.shape[1])):
-                sorted_data = cr.get_columns(sorting_column_indices=sort_col_id)
-                # Make sure the sorted column is non-decreasing
-                self.assertTrue(np.all(np.diff(sorted_data[:, sort_col_id]) >= 0))
-                # Make sure the first column is correctly sorted according to sorting_column_indices
-                np.testing.assert_array_equal(
-                    sorted_data[:, 0],
-                    cr.data[np.argsort(cr.data[:, sort_col_id]), 0])
-
-            # Condition only: select rows with odd first column, if column exists
-            cond_col_id = 0
-            conditioned_data = cr.get_columns(condition=odd_condition, condition_column_index=cond_col_id)
-            # Test all returned rows evaluate according the the odd condition
-            for row in conditioned_data:
-                self.assertTrue(odd_condition(row[cond_col_id]))
-            # Test that a manual sorting yields the same array
-            valid_indices = list(map(odd_condition, cr.data[:, cond_col_id]))
-            np.testing.assert_array_equal(conditioned_data, cr.data[valid_indices ,:])
-
-            # Define a few more complex parameters for the get_column function
-            # to test for
-            col_ids =[[0, 1] , [0, 1], [0, 1], [1, 0], [1, 0], [1, 0]]
-            cond_col_ids = [0, 1, 1, 1, 1, 0]
-            sort_col_ids = [0, [0, 1], [1, 0], [0, 1], [1, 0], [0, 1]]
-
-            # Test each complex parameter set
-            for col_ids, cond_col_id, sort_col_id in zip(col_ids, cond_col_ids, sort_col_ids):
-                # Determine the column that is the highest priority for sorting
-                if isinstance(sort_col_id, list):
-                    sort_col_id_max_priority = sort_col_id[-1]
-                else:
-                    sort_col_id_max_priority = sort_col_id
-
-                # Get the index of the condition column in the returned data
-                cond_col_id_swapped = col_ids.index(cond_col_id)
-                # Get the index of the sorting column in the returned data
-                sort_col_id_max_priority_swapped = col_ids.index(sort_col_id_max_priority)
-
-                sorted_conditioned_data = cr.get_columns(
-                    column_indices=col_ids,
-                    sorting_column_indices=sort_col_id,
-                    condition=odd_condition, condition_column_index=cond_col_id)
-
-                # Make sure that the sorted column is non-decreasing
-                self.assertTrue(np.all(np.diff(sorted_conditioned_data[:, sort_col_id_max_priority_swapped]) >= 0))
-
-                # Test all that all returned rows evaluate according to the odd condition
-                for row in sorted_conditioned_data:
-                    self.assertTrue(odd_condition(row[cond_col_id_swapped]))
-
-                # Test that a manual sorting yields the same array
-                # Note: In a scenario where sorting is done by one column only, the order of other columns may still be
-                # arbitrary depending on the sorting algorithm. The current implementation of the ground truth sorting
-                # below using the sorted function replicates the sorting done by the IO. However, changes to the IO may
-                # break this test without violating the doc string. However, it will tell you that the IO chooses a
-                # different sorting strategy.
-                valid_indices = list(map(odd_condition, cr.data[:, cond_col_id]))
-                np.testing.assert_array_equal(
-                    sorted_conditioned_data,
-                    np.array(sorted(cr.data[valid_indices , 0:2], key=lambda x : x[sort_col_id_max_priority]))[:, col_ids])
-
     def test_get_columns_warnings_and_errors(self):
         """
         get_columns should warn if condition_column_index given without a condition,
@@ -1063,7 +1055,6 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
                 self.assertTrue(cr.has_time_series)
             else:
                 self.assertFalse(cr.has_time_series)
-
 
     def test_no_condition(self):
         """
@@ -1141,6 +1132,77 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
             result = self.testIO_v2_multimeter.get_columns(column_indices=column_i[-1], sorting_column_indices=column_i)
             assert len(result) > 0
             assert all(np.diff(result[:, 0]) >= 0)
+
+    def test_combined_selection_condition_sort(self):
+        """
+        get_columns() should select, sort, filter, or accept various forms of column/sort specification. This
+        test will first test sorting and condition in isolation, then combine them in multiple combinations.
+        """
+        # Condition function used in tests
+        odd_condition = lambda x: (int(x) % 2) == 1
+
+        for cr in [self.testIO_v2_multimeter, self.testIO_v3_multimeter, self.testIO_v3_spikerecorder_precise]:
+            # Sorting only: should sort by column values
+            for sort_col_id in range(min(2, cr.data.shape[1])):
+                sorted_data = cr.get_columns(sorting_column_indices=sort_col_id)
+                # Make sure the sorted column is non-decreasing
+                self.assertTrue(np.all(np.diff(sorted_data[:, sort_col_id]) >= 0))
+                # Make sure the first column is correctly sorted according to sorting_column_indices
+                np.testing.assert_array_equal(
+                    sorted_data[:, 0],
+                    cr.data[np.argsort(cr.data[:, sort_col_id]), 0])
+
+            # Condition only: select rows with odd first column, if column exists
+            cond_col_id = 0
+            conditioned_data = cr.get_columns(condition=odd_condition, condition_column_index=cond_col_id)
+            # Test all returned rows evaluate according the the odd condition
+            for row in conditioned_data:
+                self.assertTrue(odd_condition(row[cond_col_id]))
+            # Test that a manual sorting yields the same array
+            valid_indices = list(map(odd_condition, cr.data[:, cond_col_id]))
+            np.testing.assert_array_equal(conditioned_data, cr.data[valid_indices ,:])
+
+            # Define a few more complex parameters for the get_column function
+            # to test for
+            col_ids =[[0, 1] , [0, 1], [0, 1], [1, 0], [1, 0], [1, 0]]
+            cond_col_ids = [0, 1, 1, 1, 1, 0]
+            sort_col_ids = [0, [0, 1], [1, 0], [0, 1], [1, 0], [0, 1]]
+
+            # Test each complex parameter set
+            for col_ids, cond_col_id, sort_col_id in zip(col_ids, cond_col_ids, sort_col_ids):
+                # Determine the column that is the highest priority for sorting
+                if isinstance(sort_col_id, list):
+                    sort_col_id_max_priority = sort_col_id[-1]
+                else:
+                    sort_col_id_max_priority = sort_col_id
+
+                # Get the index of the condition column in the returned data
+                cond_col_id_swapped = col_ids.index(cond_col_id)
+                # Get the index of the sorting column in the returned data
+                sort_col_id_max_priority_swapped = col_ids.index(sort_col_id_max_priority)
+
+                sorted_conditioned_data = cr.get_columns(
+                    column_indices=col_ids,
+                    sorting_column_indices=sort_col_id,
+                    condition=odd_condition, condition_column_index=cond_col_id)
+
+                # Make sure that the sorted column is non-decreasing
+                self.assertTrue(np.all(np.diff(sorted_conditioned_data[:, sort_col_id_max_priority_swapped]) >= 0))
+
+                # Test all that all returned rows evaluate according to the odd condition
+                for row in sorted_conditioned_data:
+                    self.assertTrue(odd_condition(row[cond_col_id_swapped]))
+
+                # Test that a manual sorting yields the same array
+                # Note: In a scenario where sorting is done by one column only, the order of other columns may still be
+                # arbitrary depending on the sorting algorithm. The current implementation of the ground truth sorting
+                # below using the sorted function replicates the sorting done by the IO. However, changes to the IO may
+                # break this test without violating the doc string. However, it will tell you that the IO chooses a
+                # different sorting strategy.
+                valid_indices = list(map(odd_condition, cr.data[:, cond_col_id]))
+                np.testing.assert_array_equal(
+                    sorted_conditioned_data,
+                    np.array(sorted(cr.data[valid_indices , 0:2], key=lambda x : x[sort_col_id_max_priority]))[:, col_ids])
 
 if __name__ == "__main__":
     unittest.main()
