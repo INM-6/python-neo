@@ -894,7 +894,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         self.assertEqual(self.testIO_v2_spikerecorder.data.shape[1], 1)
         # Multi-column file: .dat with multiple columns
         self.assertEqual(len(self.testIO_v2_multimeter.data.shape), 2)
-        self.assertGreater(self.testIO_v2_multimeter.data.shape[1], 4)
+        self.assertEqual(self.testIO_v2_multimeter.data.shape[1], 5)
 
     def test_get_columns_errors(self):
         """
