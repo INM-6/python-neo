@@ -802,24 +802,26 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         self.assertEqual(cr.backend_version, "1")
         self.assertEqual(cr.column_names, [])
         self.assertEqual(cr.header_indices, {})
+        # has_time_series is by definition False for NEST 2.x files
         self.assertFalse(cr.has_time_series)
+
 
     def test_malformed_header_ignored(self):
         """
         Checks that files with headers that do not match NEST 3.x format
         raise warnings and revert to default values.
         """
-        # We will simulate by modifying the header in a temp file
+        # We will simulate the situation by modifying the header of a valid file in a temporary file
         orig_path = self.get_local_path("nest/nest3/multimeter_1ms-23-0.dat")
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
             # Write a bogus header that will not be recognized
             tf.write("# FooBar header none\n# recording ascii X\n# bogus header\n")
             tf.flush()
-            # Copy rest of data from a real file for proper format
+            # Copy a few lines of data from a real file for proper formating
             with open(orig_path) as realfile:
                 lines = realfile.readlines()
                 data_lines = [l for l in lines if not l.strip().startswith("#") and l.strip()]
-                tf.writelines(data_lines[:10])  # Just a few rows for test
+                tf.writelines(data_lines[:10])
             tf.flush()
 
         # File should not be recognized as NEST 3.x file, but instead follow NEST 2.x logic
@@ -876,7 +878,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         self.assertEqual(self.testIO_v3_spikerecorder.data.dtype, np.float64)
 
         # NEST 3.x: times as float precise steps
-        self.assertEqual(self.testIO_v3_spikerecorder.data.dtype, np.float64)
+        self.assertEqual(self.testIO_v3_spikerecorder_precise.data.dtype, np.float64)
 
         # NEST 2.x: overwriting the dtype should work
         filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")

@@ -1130,7 +1130,7 @@ class NestColumnReader:
         found in a NEST 3.x file. Columns that were not found are marked as
         `None`. If no valid header is found, the dictionary is empty.
     standard_headers : list of string
-        List of the names of all standard headers (sender ID and time related
+        List of the names of all standard headers (sender ID and time-related
         columns).
     is_valid_nest3_file : bool
         True if the file has a valid NEST 3.x header.
