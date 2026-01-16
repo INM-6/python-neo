@@ -775,6 +775,7 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         self.assertIsInstance(cr.column_names, list)
         self.assertIsInstance(cr.header_indices, dict)
         self.assertEqual(len(cr.column_names), 2)  # Expected: sender, time_ms, plus signals
+        self.assertEqual(len(cr.column_names), cr.data.shape[1])
         self.assertIn("sender", cr.header_indices)
         self.assertIn("time_ms", cr.header_indices)
         self.assertFalse(cr.has_time_series)
@@ -786,7 +787,8 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         self.assertEqual(cr.backend_version, "2")
         self.assertIsInstance(cr.column_names, list)
         self.assertIsInstance(cr.header_indices, dict)
-        self.assertEqual(len(cr.column_names), 3)  # Expected: sender, time_ms, plus signals
+        self.assertEqual(len(cr.column_names), 3)  # Expected: sender, time_ms, time_offset, plus signals
+        self.assertEqual(len(cr.column_names), cr.data.shape[1])
         self.assertIn("sender", cr.header_indices)
         self.assertIn("time_ms", cr.header_indices)
         self.assertIn("time_offset", cr.header_indices)
@@ -804,7 +806,6 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         self.assertEqual(cr.header_indices, {})
         # has_time_series is by definition False for NEST 2.x files
         self.assertFalse(cr.has_time_series)
-
 
     def test_malformed_header_ignored(self):
         """
@@ -901,11 +902,18 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
         Requesting columns outside range or with missing sorting columns raises ValueError.
         """
         cr = self.testIO_v2_multimeter
-        ncol = cr.data.shape[1]
+        n_columns = cr.data.shape[1]
         with self.assertRaises(ValueError):
-            cr.get_columns(column_indices=ncol + 1)
+            cr.get_columns(column_indices=n_columns)
         with self.assertRaises(ValueError):
-            cr.get_columns(sorting_column_indices=ncol + 1)
+            cr.get_columns(sorting_column_indices=n_columns)
+
+        cr = self.testIO_v3_multimeter
+        n_columns = cr.data.shape[1]
+        with self.assertRaises(ValueError):
+            cr.get_columns(column_indices=n_columns)
+        with self.assertRaises(ValueError):
+            cr.get_columns(sorting_column_indices=n_columns)
 
     def test_get_columns_identity(self):
         """
