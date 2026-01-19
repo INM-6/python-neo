@@ -90,6 +90,38 @@ class NestIO(BaseIO):
 
         self.IOs = [NestColumnReader(filename, **kwargs) for filename in filenames]
 
+    def __determine_file_content(self, reader):
+        """
+        Internal function for determining the content of a file (spike train
+        vs. time series).
+
+        Parameters
+        ----------
+        reader : NestColumnReader
+            The reader object for the file to be analyzed.
+
+        Returns
+        -------
+        content : str
+            The content of the file, either 'spike_train' or 'analog_signal'.
+        """
+        # Determine the content of the file based on the extension (NEST 2.x)
+        if not reader.is_valid_nest3_file:
+            extension = os.path.splitext(reader.filename)[1]
+            if extension == '.gdf':
+                return 'spike_train'
+            elif extension == '.dat':
+                return 'analog_signal'
+            else:
+                raise ValueError(f"Unknown file extension {extension} for NEST 2.x file.")
+
+        # For NEST 3.x, the file header indicates the content
+        # Spike train: sender and time_ms OR sender, time_step, and time_offset
+        # This is tested by the ColumnReader already
+        if reader.has_time_series:
+            return 'analog_signal'
+        else:
+            return 'spike_train'
 
     def __read_analogsignals(
             self, id_list, time_unit, t_start, t_stop,
