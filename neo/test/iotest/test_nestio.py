@@ -298,7 +298,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
     entities_to_download = ["nest"]
     entities_to_test = []
 
-    def test_read_spiketrain(self):
+    def test_read_spiketrain_nest2(self):
         """
         Tests reading files in the 4 different formats:
         - without GIDs, with times as floats
@@ -306,12 +306,22 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         - with GIDs, with times as floats
         - with GIDs, with times as integers in time steps
         """
-        filename = self.get_local_path("nest/0time-1255-0.gdf")
+        filename = self.get_local_path("nest/nest2/0time-1255-0.gdf")
         r = NestIO(filenames=filename)
-        r.read_spiketrain(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column=None, time_column=0)
-        r.read_segment(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=None, time_column_gdf=0)
+        r.read_spiketrain(
+            t_start=400.0 * pq.ms,
+            t_stop=500.0 * pq.ms,
+            lazy=False,
+            id_column=None,
+            time_column=0)
+        r.read_segment(
+            t_start=400.0 * pq.ms,
+            t_stop=500.0 * pq.ms,
+            lazy=False,
+            id_column_gdf=None,
+            time_column_gdf=0)
 
-        filename = self.get_local_path("nest/0time_in_steps-1257-0.gdf")
+        filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
             t_start=400.0 * pq.ms,
@@ -330,7 +340,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=0,
         )
 
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
             id=1, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
@@ -339,7 +349,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             gid_list=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
         )
 
-        filename = self.get_local_path("nest/0gid-1time_in_steps-1258-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time_in_steps-1258-0.gdf")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
             id=1,
@@ -360,6 +370,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             time_column_gdf=1,
         )
 
+    def test_read_spiketrain_nest3(self):
         filename = self.get_local_path("nest/nest3/precise_spikes_times-19-0.dat")
         r = NestIO(filenames=filename)
         r.read_spiketrain(
