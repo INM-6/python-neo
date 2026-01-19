@@ -839,7 +839,12 @@ class TestNestColumnReader(BaseTestIO, unittest.TestCase):
             tf.flush()
 
         # File should not be recognized as NEST 3.x file, but instead follow NEST 2.x logic
-        cr = NestColumnReader(tf.name)
+        # A warning message should be output to inform users of the potential problem
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            cr = NestColumnReader(tf.name)
+            self.assertTrue(any("Unidentified" in str(ww.message) for ww in w))
         self.assertFalse(cr.is_valid_nest3_file)
         self.assertEqual(cr.nest_version, "2.x")
         self.assertEqual(cr.backend_version, "1")
