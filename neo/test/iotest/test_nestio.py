@@ -333,7 +333,9 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             filename = self.get_local_path(config["path"])
             try:
                 r = NestIO(filenames=filename)
-                # Assert successful loading
+                # Assert successful loading by asserting that the NestIO
+                # recruited exactly one NestColumnReader, and that this
+                # ColumnReader has data attached.
                 self.assertEqual(len(r.IOs), 1)
                 self.assertTrue(r.IOs[0].data.size > 0)
 
@@ -353,94 +355,14 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
                     **config["seg_params"]
                 )
             except Exception as e:
-                self.fail(f"NestIO failed to load {filename} with error: {e}")
-
-    # def test_read_spiketrain_nest3(self):
-    #     """
-    #     Tests reading files in the 4 different formats:
-    #     - without GIDs, with times as floats
-    #     - without GIDs, with times as integers in time steps
-    #     - with GIDs, with times as floats
-    #     - with GIDs, with times as integers in time steps
-    #     """
-    #     filename = self.get_local_path("nest/nest2/0time-1255-0.gdf")
-    #     try:
-    #         r = NestIO(filenames=filename)
-    #         r.read_spiketrain(
-    #             t_start=400.0 * pq.ms,
-    #             t_stop=500.0 * pq.ms,
-    #             lazy=False,
-    #             id_column=None,
-    #             time_column=0)
-    #         r.read_segment(
-    #             t_start=400.0 * pq.ms,
-    #             t_stop=500.0 * pq.ms,
-    #             lazy=False,
-    #             id_column_gdf=None,
-    #             time_column_gdf=0)
-    #     except Exception as e:
-    #         self.fail("NESTIO failed to load {filename} with error: {e}")
-    #
-    #     filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
-    #     r = NestIO(filenames=filename)
-    #     r.read_spiketrain(
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column=None,
-    #         time_column=0,
-    #     )
-    #     r.read_segment(
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column_gdf=None,
-    #         time_column_gdf=0,
-    #     )
-    #
-    #     filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
-    #     r = NestIO(filenames=filename)
-    #     r.read_spiketrain(
-    #         id=1,
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         lazy=False,
-    #         id_column_gdf=0,
-    #         time_column_gdf=1
-    #     )
-    #     r.read_segment(
-    #         gid_list=[1],
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         lazy=False,
-    #         id_column_gdf=0,
-    #         time_column_gdf=1
-    #     )
-    #
-    #     filename = self.get_local_path("nest/nest2/0gid-1time_in_steps-1258-0.gdf")
-    #     r = NestIO(filenames=filename)
-    #     r.read_spiketrain(
-    #         id=1,
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column=0,
-    #         time_column=1,
-    #     )
-    #     r.read_segment(
-    #         gid_list=[1],
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column_gdf=0,
-    #         time_column_gdf=1,
-    #     )
+                self.fail(f"NestIO failed to load Nest 2.x file {filename} with error: {e}")
 
     def test_read_spiketrain_nest3(self):
+        """
+        Tests reading Nest 3.x files in the 2 different formats:
+        - with GIDs, with times as floats
+        - with GIDs, with times as integers in time steps
+        """
         test_configs = [
             {
                 "path": "nest/nest3/precise_spikes_times-19-0.dat",
@@ -458,7 +380,9 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             filename = self.get_local_path(config["path"])
             try:
                 r = NestIO(filenames=filename)
-                # Assert successful loading
+                # Assert successful loading by asserting that the NestIO
+                # recruited exactly one NestColumnReader, and that this
+                # ColumnReader has data attached.
                 self.assertEqual(len(r.IOs), 1)
                 self.assertTrue(r.IOs[0].data.size > 0)
 
@@ -480,50 +404,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
                     **config["seg_params"]
                 )
             except Exception as e:
-                self.fail(f"NestIO failed to load NEST3 file {filename} with error: {e}")
-
-    # def test_read_spiketrain_nest3(self):
-    #     filename = self.get_local_path("nest/nest3/precise_spikes_times-19-0.dat")
-    #     r = NestIO(filenames=filename)
-    #     r.read_spiketrain(
-    #         id=1,
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column=0,
-    #         time_column=1,
-    #     )
-    #     r.read_segment(
-    #         gid_list=[1],
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column_gdf=0,
-    #         time_column_gdf=1,
-    #     )
-    #
-    #     filename = self.get_local_path("nest/nest3/precise_spikes_steps-20-0.dat")
-    #     r = NestIO(filenames=filename)
-    #     r.read_spiketrain(
-    #         id=1,
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column=0,
-    #         time_column=1,
-    #     )
-    #     r.read_segment(
-    #         gid_list=[1],
-    #         t_start=400.0 * pq.ms,
-    #         t_stop=500.0 * pq.ms,
-    #         time_unit=pq.CompoundUnit("0.1*ms"),
-    #         lazy=False,
-    #         id_column_gdf=0,
-    #         time_column_gdf=1,
-    #     )
+                self.fail(f"NestIO failed to load Nest 3.x file {filename} with error: {e}")
 
     def test_read_integer(self):
         """
