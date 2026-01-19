@@ -31,14 +31,22 @@ value_type_dict = {"V": pq.mV, "I": pq.pA,
 
 class NestIO(BaseIO):
     """
-    Class for reading NEST output files. GDF files for the spike data and DAT
-    files for analog signals are possible.
+    Class for reading NEST 2.x and 3.x output files. For NEST 2.x, GDF files are
+    for the spike data and DAT files for analog signals. In NEST 3.x, all files
+    carry the DAT extension, and a standardized header indicates the meaning of
+    data columns in the file.
+
+    The IO will autodetect if the file contents are from NEST 2.x or 3.x based
+    on the file extension and header information. For NEST 2.x, if the file has
+    the extension .gdf, it is assumed to contain spike times. If the file has
+    the extension .dat, it is assumed to contain a timer series. For NEST 3.x,
+    the file header is analyzed to determine the meaning of the columns, and in
+    particular whether the file contains spike times or a time series.
 
     Usage:
         >>> from neo.io.nestio import NestIO
 
-        >>> files = ['membrane_voltages-1261-0.dat',
-                 'spikes-1258-0.gdf']
+        >>> files = ['membrane_voltages-1261-0.dat', 'spikes-1258-0.gdf']
         >>> r = NestIO(filenames=files)
         >>> seg = r.read_segment(gid_list=[], t_start=400 * pq.ms,
                              t_stop=600 * pq.ms,
@@ -59,33 +67,26 @@ class NestIO(BaseIO):
     write_params = None  # writing is not supported
 
     name = 'nest'
-    supported_target_objects = ['SpikeTrain', 'AnalogSignal']
     mode = 'file'
 
-    def __init__(self, filenames=None, target_object='SpikeTrain', **kwargs):
+    def __init__(self, filenames, **kwargs):
         """
-        Parameters
+        Arguments
         ----------
-        filenames: string or list of strings, default=None
-            The filename or list of filenames to load.
-        target_object : string or list of strings, default='SpikeTrain'
-            The type of neo object that should be read out from the input.
-            Options are: 'SpikeTrain', 'AnalogSignal'
+        filenames: string or list of strings
+            The filename or list of filenames to load. The contents of the files
+            are automatically determined based on the extension (gdf or dat, for
+            NEST 2.x) or based on the headers (NEST 3.x).
         kwargs : dict like
             keyword arguments that will be passed to `numpy.loadtxt` see
             https://numpy.org/devdocs/reference/generated/numpy.loadtxt.html
         """
-        if target_object not in self.supported_target_objects:
-            raise ValueError(f'{target_object} is not a valid object type. '
-                             f'Valid values are {self.objects}.')
-
         # Ensure filenames is always a list
         if isinstance(filenames, str):
             filenames = [filenames]
 
         # Turn kwargs to attributes
         self.filenames = filenames
-        self.target_object = target_object
 
         self.IOs = [NestColumnReader(filename, **kwargs) for filename in filenames]
 
