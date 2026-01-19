@@ -306,119 +306,231 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         - with GIDs, with times as floats
         - with GIDs, with times as integers in time steps
         """
-        filename = self.get_local_path("nest/nest2/0time-1255-0.gdf")
-        r = NestIO(filenames=filename)
-        r.read_spiketrain(
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            lazy=False,
-            id_column=None,
-            time_column=0)
-        r.read_segment(
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            lazy=False,
-            id_column_gdf=None,
-            time_column_gdf=0)
+        test_configs = [
+            {
+                "path": "nest/nest2/0time-1255-0.gdf",
+                "params": {"id_column": None, "time_column": 0},
+                "seg_params": {"id_column_gdf": None, "time_column_gdf": 0}
+            },
+            {
+                "path": "nest/nest2/0time_in_steps-1257-0.gdf",
+                "params": {"id_column": None, "time_column": 0, "time_unit": pq.CompoundUnit("0.1*ms")},
+                "seg_params": {"id_column_gdf": None, "time_column_gdf": 0, "time_unit": pq.CompoundUnit("0.1*ms")}
+            },
+            {
+                "path": "nest/nest2/0gid-1time-1256-0.gdf",
+                "params": {"id": 1, "id_column_gdf": 0, "time_column_gdf": 1},
+                "seg_params": {"gid_list": [1], "id_column_gdf": 0, "time_column_gdf": 1}
+            },
+            {
+                "path": "nest/nest2/0gid-1time_in_steps-1258-0.gdf",
+                "params": {"id": 1, "id_column": 0, "time_column": 1, "time_unit": pq.CompoundUnit("0.1*ms")},
+                "seg_params": {"gid_list": [1], "id_column_gdf": 0, "time_column_gdf": 1, "time_unit": pq.CompoundUnit("0.1*ms")}
+            }
+        ]
 
-        filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
-        r = NestIO(filenames=filename)
-        r.read_spiketrain(
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column=None,
-            time_column=0,
-        )
-        r.read_segment(
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column_gdf=None,
-            time_column_gdf=0,
-        )
+        for config in test_configs:
+            filename = self.get_local_path(config["path"])
+            try:
+                r = NestIO(filenames=filename)
+                # Assert successful loading
+                self.assertEqual(len(r.IOs), 1)
+                self.assertTrue(r.IOs[0].data.size > 0)
 
-        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
-        r = NestIO(filenames=filename)
-        r.read_spiketrain(
-            id=1, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
-        )
-        r.read_segment(
-            gid_list=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1
-        )
+                # Test read_spiketrain
+                r.read_spiketrain(
+                    t_start=400.0 * pq.ms,
+                    t_stop=500.0 * pq.ms,
+                    lazy=False,
+                    **config["params"]
+                )
 
-        filename = self.get_local_path("nest/nest2/0gid-1time_in_steps-1258-0.gdf")
-        r = NestIO(filenames=filename)
-        r.read_spiketrain(
-            id=1,
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column=0,
-            time_column=1,
-        )
-        r.read_segment(
-            gid_list=[1],
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column_gdf=0,
-            time_column_gdf=1,
-        )
+                # Test read_segment
+                r.read_segment(
+                    t_start=400.0 * pq.ms,
+                    t_stop=500.0 * pq.ms,
+                    lazy=False,
+                    **config["seg_params"]
+                )
+            except Exception as e:
+                self.fail(f"NestIO failed to load {filename} with error: {e}")
+
+    # def test_read_spiketrain_nest3(self):
+    #     """
+    #     Tests reading files in the 4 different formats:
+    #     - without GIDs, with times as floats
+    #     - without GIDs, with times as integers in time steps
+    #     - with GIDs, with times as floats
+    #     - with GIDs, with times as integers in time steps
+    #     """
+    #     filename = self.get_local_path("nest/nest2/0time-1255-0.gdf")
+    #     try:
+    #         r = NestIO(filenames=filename)
+    #         r.read_spiketrain(
+    #             t_start=400.0 * pq.ms,
+    #             t_stop=500.0 * pq.ms,
+    #             lazy=False,
+    #             id_column=None,
+    #             time_column=0)
+    #         r.read_segment(
+    #             t_start=400.0 * pq.ms,
+    #             t_stop=500.0 * pq.ms,
+    #             lazy=False,
+    #             id_column_gdf=None,
+    #             time_column_gdf=0)
+    #     except Exception as e:
+    #         self.fail("NESTIO failed to load {filename} with error: {e}")
+    #
+    #     filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
+    #     r = NestIO(filenames=filename)
+    #     r.read_spiketrain(
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column=None,
+    #         time_column=0,
+    #     )
+    #     r.read_segment(
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column_gdf=None,
+    #         time_column_gdf=0,
+    #     )
+    #
+    #     filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
+    #     r = NestIO(filenames=filename)
+    #     r.read_spiketrain(
+    #         id=1,
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         lazy=False,
+    #         id_column_gdf=0,
+    #         time_column_gdf=1
+    #     )
+    #     r.read_segment(
+    #         gid_list=[1],
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         lazy=False,
+    #         id_column_gdf=0,
+    #         time_column_gdf=1
+    #     )
+    #
+    #     filename = self.get_local_path("nest/nest2/0gid-1time_in_steps-1258-0.gdf")
+    #     r = NestIO(filenames=filename)
+    #     r.read_spiketrain(
+    #         id=1,
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column=0,
+    #         time_column=1,
+    #     )
+    #     r.read_segment(
+    #         gid_list=[1],
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column_gdf=0,
+    #         time_column_gdf=1,
+    #     )
 
     def test_read_spiketrain_nest3(self):
-        filename = self.get_local_path("nest/nest3/precise_spikes_times-19-0.dat")
-        r = NestIO(filenames=filename)
-        r.read_spiketrain(
-            id=1,
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column=0,
-            time_column=1,
-        )
-        r.read_segment(
-            gid_list=[1],
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column_gdf=0,
-            time_column_gdf=1,
-        )
+        test_configs = [
+            {
+                "path": "nest/nest3/precise_spikes_times-19-0.dat",
+                "params": {"id": 1, "id_column": 0, "time_column": 1},
+                "seg_params": {"gid_list": [1], "id_column_gdf": 0, "time_column_gdf": 1}
+            },
+            {
+                "path": "nest/nest3/precise_spikes_steps-20-0.dat",
+                "params": {"id": 1, "id_column": 0, "time_column": 1},
+                "seg_params": {"gid_list": [1], "id_column_gdf": 0, "time_column_gdf": 1}
+            }
+        ]
 
-        filename = self.get_local_path("nest/nest3/precise_spikes_steps-20-0.dat")
-        r = NestIO(filenames=filename)
-        r.read_spiketrain(
-            id=1,
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column=0,
-            time_column=1,
-        )
-        r.read_segment(
-            gid_list=[1],
-            t_start=400.0 * pq.ms,
-            t_stop=500.0 * pq.ms,
-            time_unit=pq.CompoundUnit("0.1*ms"),
-            lazy=False,
-            id_column_gdf=0,
-            time_column_gdf=1,
-        )
+        for config in test_configs:
+            filename = self.get_local_path(config["path"])
+            try:
+                r = NestIO(filenames=filename)
+                # Assert successful loading
+                self.assertEqual(len(r.IOs), 1)
+                self.assertTrue(r.IOs[0].data.size > 0)
+
+                # Test read_spiketrain
+                r.read_spiketrain(
+                    t_start=400.0 * pq.ms,
+                    t_stop=500.0 * pq.ms,
+                    time_unit=pq.CompoundUnit("0.1*ms"),
+                    lazy=False,
+                    **config["params"]
+                )
+
+                # Test read_segment
+                r.read_segment(
+                    t_start=400.0 * pq.ms,
+                    t_stop=500.0 * pq.ms,
+                    time_unit=pq.CompoundUnit("0.1*ms"),
+                    lazy=False,
+                    **config["seg_params"]
+                )
+            except Exception as e:
+                self.fail(f"NestIO failed to load NEST3 file {filename} with error: {e}")
+
+    # def test_read_spiketrain_nest3(self):
+    #     filename = self.get_local_path("nest/nest3/precise_spikes_times-19-0.dat")
+    #     r = NestIO(filenames=filename)
+    #     r.read_spiketrain(
+    #         id=1,
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column=0,
+    #         time_column=1,
+    #     )
+    #     r.read_segment(
+    #         gid_list=[1],
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column_gdf=0,
+    #         time_column_gdf=1,
+    #     )
+    #
+    #     filename = self.get_local_path("nest/nest3/precise_spikes_steps-20-0.dat")
+    #     r = NestIO(filenames=filename)
+    #     r.read_spiketrain(
+    #         id=1,
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column=0,
+    #         time_column=1,
+    #     )
+    #     r.read_segment(
+    #         gid_list=[1],
+    #         t_start=400.0 * pq.ms,
+    #         t_stop=500.0 * pq.ms,
+    #         time_unit=pq.CompoundUnit("0.1*ms"),
+    #         lazy=False,
+    #         id_column_gdf=0,
+    #         time_column_gdf=1,
+    #     )
 
     def test_read_integer(self):
         """
         Tests if spike times are actually stored as integers if they are stored
         in time steps in the file.
         """
-        filename = self.get_local_path("nest/0time_in_steps-1257-0.gdf")
+        filename = self.get_local_path("nest/nest2/0time_in_steps-1257-0.gdf")
         r = NestIO(filenames=filename)
         st = r.read_spiketrain(
             t_start=400.0 * pq.ms,
@@ -470,7 +582,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         Tests if spike times are stored as floats if they
         are stored as floats in the file.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         st = r.read_spiketrain(id=1, t_start=400. * pq.ms,
                                t_stop=500. * pq.ms,
