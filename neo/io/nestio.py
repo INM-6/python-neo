@@ -982,10 +982,10 @@ class NestIO(BaseIO):
             Column index or indices of signal(s), i.e., column(s) values to
             read. NEST version 2.x, this is an integer or list of integers
             specifying the index/indices of the column. For NEST version 3.x,
-            the column can either bei specified by an integer(s), or can be
+            the column can either be specified by an integer(s), or can be
             identified by string(s) matching the column header(s) in the file.
-            If None, the all columns that are neither a time or a sender ID are
-            read.
+            If None, the all columns that are neither a time or a sender ID
+            column are read.
             Default: None
         value_type : np.dtype
             Default: np.float64
@@ -1063,7 +1063,7 @@ class NestIO(BaseIO):
             NEST version 2.x, this is 0 (the first column). For NEST version
             3.x, the column is identified by the column header `sender` in the
             file. In this case, `id_column` is ignored, but if not set to
-            `None`, a warning is issued that the value conflicts with the
+            `None`, a warning is issued if the value conflicts with the
             header information. If the file contains a header, but the column
             headers do not match the expectancy, the header is ignored, the
             value for `id_column` is used, and a warning is issued indicating
