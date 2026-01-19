@@ -17,6 +17,7 @@ import os.path
 import re  # Import re for regex matching
 import warnings
 from datetime import datetime
+from functools import wraps
 import numpy as np
 import quantities as pq
 
@@ -27,6 +28,26 @@ from neo.core.spiketrainlist import SpikeTrainList
 value_type_dict = {"V": pq.mV, "I": pq.pA, 
                    "g": pq.CompoundUnit("10^-9*S"), 
                    "no type": pq.dimensionless}
+
+# Deprecator for `gdf_id` parameters, which are now called `id`.
+def deprecate_kwarg(old_name, new_name):
+    """Decorator to map a deprecated keyword argument to a new one."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if old_name in kwargs:
+                warnings.warn(
+                    f"The parameter '{old_name}' is deprecated and will be removed in a future release. "
+                    f"Please use '{new_name}' instead.",
+                    FutureWarning,
+                    stacklevel=2
+                )
+                if new_name in kwargs:
+                    raise ValueError(f"Cannot specify both '{new_name}' and '{old_name}'.")
+                kwargs[new_name] = kwargs.pop(old_name)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 class NestIO(BaseIO):
@@ -48,7 +69,7 @@ class NestIO(BaseIO):
 
         >>> files = ['membrane_voltages-1261-0.dat', 'spikes-1258-0.gdf']
         >>> r = NestIO(filenames=files)
-        >>> seg = r.read_segment(gid_list=[], t_start=400 * pq.ms,
+        >>> seg = r.read_segment(id_list=[], t_start=400 * pq.ms,
                              t_stop=600 * pq.ms,
                              id_column_gdf=0, time_column_gdf=1,
                              id_column_dat=0, time_column_dat=1,
@@ -790,9 +811,10 @@ class NestIO(BaseIO):
         selected_ids = gids + id_shifts
         return selected_ids
 
+    @deprecate_kwarg('gid_list', 'id_list')
     def read_block(
         self,
-        gid_list=None,
+        id_list=None,
         time_unit=pq.ms,
         t_start=None,
         t_stop=None,
@@ -809,7 +831,7 @@ class NestIO(BaseIO):
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
 
-        seg = self.read_segment(gid_list, time_unit, t_start,
+        seg = self.read_segment(id_list, time_unit, t_start,
                                 t_stop, sampling_period, id_column_dat,
                                 time_column_dat, value_columns_dat,
                                 id_column_gdf, time_column_gdf, value_types,
@@ -819,9 +841,10 @@ class NestIO(BaseIO):
         blk.segments.append(seg)
         return blk
 
+    @deprecate_kwarg('gid_list', 'id_list')
     def read_segment(
         self,
-        gid_list=None,
+        id_list=None,
         time_unit=pq.ms,
         t_start=None,
         t_stop=None,
@@ -841,7 +864,7 @@ class NestIO(BaseIO):
 
         Arguments
         ----------
-        gid_list : list, default: None
+        id_list : list, default: None
             A list of GDF IDs of which to return SpikeTrain(s). gid_list must
             be specified if the GDF file contains neuron IDs, the default None
             then raises an error. Specify an empty list [] to retrieve the
@@ -880,15 +903,15 @@ class NestIO(BaseIO):
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
 
-        if isinstance(gid_list, tuple):
-            if gid_list[0] > gid_list[1]:
+        if isinstance(id_list, tuple):
+            if id_list[0] > id_list[1]:
                 raise ValueError("The second entry in gid_list must be "
                                  "greater or equal to the first entry.")
-            gid_list = range(gid_list[0], gid_list[1] + 1)
+            id_list = range(id_list[0], id_list[1] + 1)
 
         # __read_xxx() needs a list of IDs
-        if gid_list is None:
-            gid_list = [None]
+        if id_list is None:
+            id_list = [None]
 
         # create an empty Segment
         seg = Segment(file_origin=",".join(self.filenames))
@@ -898,7 +921,7 @@ class NestIO(BaseIO):
         # Load analogsignals and attach to Segment
         if 'AnalogSignal' == self.target_object:
             seg.analogsignals = self.__read_analogsignals(
-                gid_list,
+                id_list,
                 time_unit,
                 t_start,
                 t_stop,
@@ -910,11 +933,12 @@ class NestIO(BaseIO):
                 value_units=value_units)
         if 'SpikeTrain' == self.target_object:
             seg.spiketrains = self.__read_spiketrains(
-                gid_list, time_unit, t_start, t_stop, id_column=id_column_gdf, time_column=time_column_gdf
+                id_list, time_unit, t_start, t_stop, id_column=id_column_gdf, time_column=time_column_gdf
             )
 
         return seg
 
+    @deprecate_kwarg('gdf_id', 'id')
     def read_analogsignal(
         self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
         sampling_period=None, id_column=0, time_column=1,
@@ -1029,6 +1053,7 @@ class NestIO(BaseIO):
     # TODO: There is still a bug in the logic here -- if there are multiple files
     #    Being read from, __read_spiketrains will return one spike train per
     #    file -- this will break the expected behavior here
+    @deprecate_kwarg('gdf_id', 'id')
     def read_spiketrain(
         self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
         id_column=None, time_column=None, lazy=False, **args
