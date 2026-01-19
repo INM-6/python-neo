@@ -296,6 +296,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
 class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
     ioclass = NestIO
     entities_to_download = ["nest"]
+    entities_to_test = []
 
     def test_read_spiketrain(self):
         """
@@ -721,8 +722,8 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
 
 class TestNestColumnReader(BaseTestIO, unittest.TestCase):
     ioclass = NestIO
-    entities_to_test = []
     entities_to_download = ["nest"]
+    entities_to_test = []
 
     def setUp(self):
         BaseTestIO.setUp(self)
