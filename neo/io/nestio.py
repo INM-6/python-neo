@@ -409,7 +409,8 @@ class NestIO(BaseIO):
         Arguments
         ---------
         id_list : list of int or None
-            The IDs of the spike trains to load. If `None` is specified, all
+            The IDs of the spike trains to load. If `None` or `[None]` or an empty list
+            is specified, all
             IDs will be read in the file if the file contains IDs. If the file
             is a NEST 2.x file that only contains times, all spike times
             of one file are read into a single SpikeTrain object per file. If
@@ -487,13 +488,13 @@ class NestIO(BaseIO):
                 if ((id_column is not None) and (id_column >= num_available_columns)):
                     raise ValueError(
                         f"Specified ID column index {id_column} "
-                        f"is out of range for file {col.filename}."
+                        f"is out of range for NEST 2.x or otherwise unrecognized file {col.filename}."
                     )
 
                 if ((time_column is not None) and (time_column >= num_available_columns)):
                     raise ValueError(
                         f"Specified time column index {time_column} "
-                        f"is out of range for file {col.filename}."
+                        f"is out of range for NEST 2.x or otherwise unrecognized file {col.filename}."
                     )
 
                 # Resolves column indices or skips loading unrecognized files
@@ -502,6 +503,11 @@ class NestIO(BaseIO):
                         resolved_id_column = 0
                     if time_column is None:
                         resolved_time_column = 1
+                    if resolved_id_column == resolved_time_column:
+                        raise ValueError(
+                            f"Identical columns for ID ({id_column}) and time ({time_column}) specified for "
+                            f"NEST 2.x or otherwise unrecognized file {col.filename}."
+                        )
                 elif num_available_columns==1:
                     if time_column is None:
                         resolved_time_column = 0
@@ -512,7 +518,6 @@ class NestIO(BaseIO):
                         f"Skipping loading file as Neo SpikeTrain object."
                     )
                     continue
-
 
             # Assert that the file contains spike times -- this condition must always be true
             assert resolved_time_column is not None
@@ -602,7 +607,7 @@ class NestIO(BaseIO):
 
     def _check_input_ids(self, id_list, id_column):
         """
-        Checks gid values and column for consistency. Also makes sure that
+        Checks ID values and column for consistency. Also makes sure that
         None becomes [None] for consistency.
 
         Arguments
@@ -616,23 +621,22 @@ class NestIO(BaseIO):
         -------
         id_list: list of int or None
             Adjusted IDs
-        id_column: int
-            Adjusted indices of the column containing the IDs.
         """
         if id_list is None:
             id_list = [id_list]
 
-        if None in id_list and id_column is not None:
+        if len(id_list) == 0:
+            id_list = [None]
+
+        if None in id_list and len(id_list)>1:
             raise ValueError(
-                "No sender IDs specified but file contains "
-                f"sender IDs in column {str(id_column)}. Specify empty list to "
-                "retrieve data for all sender IDs."
-                ""
+                "Cannot combine `None` and specific numeric sender IDs in `id_list`."
             )
 
         if id_list != [None] and id_column is None:
-            raise ValueError(f"Specified sender IDs to be {id_list}, but no ID column " "specified.")
-        return id_list, id_column
+            raise ValueError(
+                f"Specified sender IDs to be {id_list}, but no ID column " "specified.")
+        return id_list
 
     def _check_input_times(self, t_start, t_stop, mandatory=True):
         """
