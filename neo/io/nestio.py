@@ -409,10 +409,13 @@ class NestIO(BaseIO):
         Arguments
         ---------
         id_list : list of int or None
-            The IDs of the spike trains to load. If None is specified, all
+            The IDs of the spike trains to load. If `None` is specified, all
             IDs will be read in the file if the file contains IDs. If the file
             is a NEST 2.x file that only contains times, all spike times
-            of one file are read into a single SpikeTrain object per file.
+            of one file are read into a single SpikeTrain object per file. If
+            multiple files, i.e., ColumnIOs, match the ID, each file will
+            create its own `SpikeTrain`, and the `file_origin` annotation will
+            be set to the filename of the file that contains the spike train.
         Other parameters: see read_spiketrain().
 
         Returns
@@ -420,8 +423,8 @@ class NestIO(BaseIO):
         spiketrains : SpikeTrainList
             The requested SpikeTrainList object with an annotation 'id' for each
             SpikeTrain of the list corresponding to the sender ID. If the data
-            comes from a NEST 2.x file that only contains times, `id` is set to
-            `None`.
+            comes from a NEST 2.x file that only contains times, or `id_list` is
+            set to `[None]`, the annotation `id` is set to `None`.
         """
         spiketrain_list = SpikeTrainList()
 
