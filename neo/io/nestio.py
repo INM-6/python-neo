@@ -299,7 +299,7 @@ class NestIO(BaseIO):
             )
 
             # Check input IDs and times
-            id_list, resolved_id_column = self._check_input_ids(id_list, resolved_id_column)
+            id_list = self._check_input_ids(id_list, resolved_id_column)
             t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
 
             # Defining standard column order for internal usage
@@ -523,9 +523,9 @@ class NestIO(BaseIO):
             assert resolved_time_column is not None
 
             # Check validity of IDs being in the resolved ID column
-            id_list, resolved_id_column = self._check_input_ids(id_list, resolved_id_column)
+            id_list = self._check_input_ids(id_list, resolved_id_column)
             # Check validity of start and stop times
-            t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=True)
+            t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
 
             # Assert that no single column is assigned twice
             column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
@@ -608,13 +608,13 @@ class NestIO(BaseIO):
     def _check_input_ids(self, id_list, id_column):
         """
         Checks ID values and column for consistency. Also makes sure that
-        None becomes [None] for consistency.
+        None or [] becomes [None] in `id_list` for consistency.
 
         Arguments
         ---------
         id_list: list of int or None
             IDs to consider.
-        id_column: int,
+        id_column: int
             Index of the column containing the IDs.
 
         Returns
@@ -965,10 +965,10 @@ class NestIO(BaseIO):
             indicates the unit of values in the file.
             Default: quantities.ms
         t_start : Quantity (time)
-            Start time of SpikeTrain. `t_start` must be specified.
+            Start time of SpikeTrain.  If `None`, set to minus infinity.
             Default: None
         t_stop : Quantity (time)
-            Stop time of SpikeTrain. `t_stop` must be specified.
+            Stop time of SpikeTrain.  If `None`, set to plus infinity.
             Default: None
         sampling_period : Quantity (time)
             Sampling period of the signal. Only used for NEST 2.x files without
@@ -1078,10 +1078,10 @@ class NestIO(BaseIO):
             indicates the unit of values in the file.
             Default: quantities.ms
         t_start : Quantity (time)
-            Start time of SpikeTrain. `t_start` must be specified.
+            Start time of SpikeTrain. If `None`, set to minus infinity.
             Default: None
         t_stop : Quantity (time)
-            Stop time of SpikeTrain. `t_stop` must be specified.
+            Stop time of SpikeTrain. If `None`, set to plus infinity.
             Default: None
         id_column : int or None
             Column index of neuron IDs. If None, the defaults are used. For
