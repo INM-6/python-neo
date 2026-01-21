@@ -465,21 +465,21 @@ class NestIO(BaseIO):
                             f"Ignoring time_unit={time_unit} because 'time_ms' column found in header of valid NEST 3.x file {col.filename}. "
                         )
                     time_unit = pq.ms
-                elif (col.header_indices.get('time_steps') is not None and
+                elif (col.header_indices.get('time_step') is not None and
                       col.header_indices.get('time_offset') is not None):
                     # time_steps and time_offset columns present
-                    resolved_time_column = col.header_indices['time_steps']
+                    resolved_time_column = col.header_indices['time_step']
                     resolved_time_offset_column = col.header_indices['time_offset']
                     if time_column is not None and time_column != resolved_time_column:
                         warnings.warn(
                             f"time_column={time_column} provided, but 'time_steps' and 'time_offset' columns "
-                            f"found in header at indices {col.header_indices['time_steps']} and "
+                            f"found in header at indices {col.header_indices['time_step']} and "
                             f"{col.header_indices['time_offset']} of valid NEST 3.x file {col.filename}. Using header information."
                         )
                 else:
                     # While this situation should not be possible to happen due to the check for a valid
                     # NEST 3.x file, we double-check here
-                    raise IOError("Error reading file {col.filename}: No recognized time header found.")
+                    raise IOError(f"Error reading file {col.filename}: No recognized time header found [col.header_indices={col.header_indices}]")
             else:
                 # NEST 2.x file without header or with invalid, unrecognized header
                 num_available_columns = col.data.shape[1]
@@ -581,8 +581,14 @@ class NestIO(BaseIO):
                     else:
                         times = times
 
-            # if id_column is not given, all spike times are collected in one
-            #  spike train with id=None
+                    # Add spike train to list
+                    spiketrain_list.append(SpikeTrain(
+                        times, units=time_unit,
+                        t_start=t_start, t_stop=t_stop,
+                        file_origin=col.filename, id=nid, **args))
+
+            # If id_column is not given, all spike times are collected in one
+            # spike train with id=None
             else:
                 times = data[:, 1]
 
@@ -594,11 +600,11 @@ class NestIO(BaseIO):
                 else:
                     times = times
 
-            # Add spike train to list
-            spiketrain_list.append(SpikeTrain(
-                times, units=time_unit,
-                t_start=t_start, t_stop=t_stop,
-                file_origin=col.filename, id=nid, **args))
+                # Add spike train to list
+                spiketrain_list.append(SpikeTrain(
+                    times, units=time_unit,
+                    t_start=t_start, t_stop=t_stop,
+                    file_origin=col.filename, id=None, **args))
 
         return spiketrain_list
 

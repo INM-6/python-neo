@@ -23,7 +23,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         - with GIDs, with times as floats
         - with GIDs, with time as integer
         """
-        filename = self.get_local_path('nest/0gid-1time-2gex-3Vm-1261-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2gex-3Vm-1261-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                             sampling_period=pq.ms, lazy=False,
@@ -34,7 +34,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
                        time_column_dat=1, value_columns_dat=2,
                        value_types='V_m')
 
-        filename = self.get_local_path('nest/0gid-1time_in_steps-2Vm-1263-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time_in_steps-2Vm-1263-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                             time_unit=pq.CompoundUnit('0.1*ms'),
@@ -47,7 +47,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
                        time_column_dat=1, value_columns_dat=2,
                        value_types='V_m')
 
-        filename = self.get_local_path('nest/0gid-1time-2Vm-1259-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2Vm-1259-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                             time_unit=pq.CompoundUnit('0.1*ms'),
@@ -66,7 +66,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         from a file which does not contain unit IDs, but data for multiple
         units.
         """
-        filename = self.get_local_path("nest/0time-1255-0.gdf")
+        filename = self.get_local_path("nest/nest2/0time-1255-0.gdf")
         r = NestIO(filenames=filename)
         with self.assertRaises(ValueError):
             r.read_spiketrain(t_stop=1000. * pq.ms, lazy=False,
@@ -81,7 +81,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         """
         Tests if the function returns the correct values.
         """
-        filename = self.get_local_path("nest/0gid-1time-2gex-3Vm-1261-0.dat")
+        filename = self.get_local_path("nest/nest2/0gid-1time-2gex-3Vm-1261-0.dat")
         id_to_test = 1
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         seg = r.read_segment(id_list=[id_to_test],
@@ -100,7 +100,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         """
         Tests if signals are correctly stored in a segment.
         """
-        filename = self.get_local_path('nest/0gid-1time-2gex-1262-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
 
         id_list_to_test = range(1, 10)
@@ -135,7 +135,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         """
         Tests if signals are correctly stored in a block.
         """
-        filename = self.get_local_path('nest/0gid-1time-2gex-1262-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
 
         id_list_to_test = range(1, 10)
@@ -162,7 +162,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
           specifying a value_unit
         - User specifies t_start < 1.*sampling_period
         """
-        filename = self.get_local_path('nest/0gid-1time-2gex-1262-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         with self.assertRaises(ValueError):
             r.read_segment(t_stop=1000.0 * pq.ms, lazy=False, id_column_dat=0, time_column_dat=1)
@@ -190,7 +190,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         """
         Test for correct t_start and t_stop values of AnalogSignalArrays.
         """
-        filename = self.get_local_path('nest/0gid-1time-2gex-1262-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
 
         t_start_targ = 450.0 * pq.ms
@@ -219,7 +219,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
     #     """
     #     Test for warning, when no time column id was provided.
     #     """
-    #     filename = self.get_local_path('nest/0gid-1time-2gex-1262-0.dat')
+    #     filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
     #     r = NestIO(filenames=filename, target_object='AnalogSignal')
     #
     #     t_start_targ = 450.0 * pq.ms
@@ -254,7 +254,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         """
         Test for simultaneous loading of multiple columns from dat file.
         """
-        filename = self.get_local_path('nest/0gid-1time-2Vm-3Iex-4Iin-1264-0.dat')
+        filename = self.get_local_path('nest/nest2/0gid-1time-2Vm-3Iex-4Iin-1264-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
 
         sampling_period = pq.CompoundUnit("5*ms")
@@ -263,7 +263,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         self.assertEqual(len(anasigs), 2)
 
     def test_single_gid(self):
-        filename = self.get_local_path('nest/N1-0gid-1time-2Vm-1265-0.dat')
+        filename = self.get_local_path('nest/nest2/N1-0gid-1time-2Vm-1265-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         anasig = r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                                      time_unit=pq.CompoundUnit('0.1*ms'),
@@ -273,7 +273,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         assert anasig.annotations['id'] == 1
 
     def test_no_gid(self):
-        filename = self.get_local_path('nest/N1-0time-1Vm-1266-0.dat')
+        filename = self.get_local_path('nest/nest2/N1-0time-1Vm-1266-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         anasig = r.read_analogsignal(id=None, t_stop=1000. * pq.ms,
                                      time_unit=pq.CompoundUnit('0.1*ms'),
@@ -284,7 +284,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         self.assertEqual(len(anasig), 19)
 
     def test_no_gid_no_time(self):
-        filename = self.get_local_path('nest/N1-0Vm-1267-0.dat')
+        filename = self.get_local_path('nest/nest2/N1-0Vm-1267-0.dat')
         r = NestIO(filenames=filename, target_object='AnalogSignal')
         anasig = r.read_analogsignal(sampling_period=pq.ms, lazy=False,
                                      id_column=None, time_column=None,
@@ -501,7 +501,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         """
         Tests if spiketrains are correctly stored in a segment.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
 
         id_list_to_test = range(1, 10)
@@ -513,7 +513,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             id_column_gdf=0,
             time_column_gdf=1,
         )
-        self.assertTrue(len(seg.spiketrains) == len(id_list_to_test))
+        self.assertEqual(len(seg.spiketrains), len(id_list_to_test))
 
         id_list_to_test = []
         seg = r.read_segment(
@@ -524,13 +524,13 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             id_column_gdf=0,
             time_column_gdf=1,
         )
-        self.assertTrue(len(seg.spiketrains) == 50)
+        self.assertEqual(len(seg.spiketrains), 50)
 
     def test_read_segment_accepts_range(self):
         """
         Tests if spiketrains can be retrieved by specifying a range of GDF IDs.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
 
         seg = r.read_segment(
@@ -548,7 +548,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         Tests if error is thrown correctly, when second entry is smaller than
         the first one of the range.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
 
         seg = r.read_segment(
@@ -595,7 +595,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         """
         Tests if custom annotation is correctly added.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         st = r.read_spiketrain(id=0, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, layer="L23", population="I")
         self.assertEqual(0, st.annotations.pop("id"))
@@ -603,24 +603,26 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         self.assertEqual("I", st.annotations.pop("population"))
         self.assertEqual({}, st.annotations)
 
-    def test_wrong_input(self):
-        """
-        Tests two cases of wrong user input, namely
-        - User does not specify neuron IDs although the file contains IDs.
-        - User does not make any specifications.
-        """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
-        r = NestIO(filenames=filename)
-        with self.assertRaises(ValueError):
-            r.read_segment(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
-        with self.assertRaises(ValueError):
-            r.read_segment()
+    # TODO: ALso here, meanwhile all parameters have defaults and the test is not
+    #       required in this style -- maybe test for correct loading here instead.
+    # def test_wrong_input(self):
+    #     """
+    #     Tests two cases of wrong user input, namely
+    #     - User does not specify neuron IDs although the file contains IDs.
+    #     - User does not make any specifications.
+    #     """
+    #     filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
+    #     r = NestIO(filenames=filename)
+    #     with self.assertRaises(ValueError):
+    #         r.read_segment(t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
+    #     with self.assertRaises(ValueError):
+    #         r.read_segment()
 
     def test_t_start_t_stop(self):
         """
         Tests if the t_start and t_stop arguments are correctly processed.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
 
         t_start_targ = 410.0 * pq.ms
@@ -639,34 +641,35 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             >= t_start_targ.rescale(sts[0].times.units).magnitude
         )
 
-    def test_t_start_undefined_raises_error(self):
-        """
-        Tests if undefined t_start, i.e., t_start=None raises error.
-        """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
-        r = NestIO(filenames=filename)
-        with self.assertRaises(ValueError):
-            r.read_spiketrain(id=1, t_stop=500.0 * pq.ms, lazy=False, id_column=0, time_column=1)
-        with self.assertRaises(ValueError):
-            r.read_segment(id_list=[1, 2, 3], t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
+    # TODO: This test is no longer required, since t_start=None is now possible -- good idea?
+    # def test_t_start_undefined_raises_error(self):
+    #     """
+    #     Tests if undefined t_start, i.e., t_start=None raises error.
+    #     """
+    #     filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
+    #     r = NestIO(filenames=filename)
+    #     with self.assertRaises(ValueError):
+    #         r.read_spiketrain(id=1, t_stop=500.0 * pq.ms, lazy=False, id_column=0, time_column=1)
+    #     with self.assertRaises(ValueError):
+    #         r.read_segment(id_list=[1, 2, 3], t_stop=500.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
 
-    def test_t_stop_undefined_raises_error(self):
-        """
-        Tests if undefined t_stop, i.e., t_stop=None raises error.
-        """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
-        r = NestIO(filenames=filename)
-        with self.assertRaises(ValueError):
-            r.read_spiketrain(id=1, t_start=400.0 * pq.ms, lazy=False, id_column=0, time_column=1)
-        with self.assertRaises(ValueError):
-            r.read_segment(id_list=[1, 2, 3], t_start=400.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
+    # def test_t_stop_undefined_raises_error(self):
+    #     """
+    #     Tests if undefined t_stop, i.e., t_stop=None raises error.
+    #     """
+    #     filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
+    #     r = NestIO(filenames=filename)
+    #     with self.assertRaises(ValueError):
+    #         r.read_spiketrain(id=1, t_start=400.0 * pq.ms, lazy=False, id_column=0, time_column=1)
+    #     with self.assertRaises(ValueError):
+    #         r.read_segment(id_list=[1, 2, 3], t_start=400.0 * pq.ms, lazy=False, id_column_gdf=0, time_column_gdf=1)
 
     def test_gdf_id_illdefined_raises_error(self):
         """
         Tests if ill-defined gdf_id in read_spiketrain (i.e., None, list, or
         empty list) raises error.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         with self.assertRaises(ValueError):
             r.read_spiketrain(id=[], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
@@ -678,7 +681,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         Tests if read_segment makes sure that only non-zero spike trains are
         returned.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         seg = r.read_segment(id_list=[], t_start=400.4 * pq.ms, t_stop=400.5 * pq.ms)
         for st in seg.spiketrains:
@@ -689,7 +692,7 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         Tests if read_spiketrain returns an empty SpikeTrain if no spikes are in
         time range.
         """
-        filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
+        filename = self.get_local_path("nest/nest2/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
         st = r.read_spiketrain(id=0, t_start=400.0 * pq.ms, t_stop=410.0 * pq.ms)
         self.assertEqual(st.size, 0)
@@ -707,8 +710,8 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
 #         Test if spiketrains and analogsignals can be read simultaneously
 #         using read_segment
 #         """
-#         files = ['nest/0gid-1time-2gex-3Vm-1261-0.dat',
-#                  'nest/0gid-1time_in_steps-1258-0.gdf']
+#         files = ['nest/nest2/0gid-1time-2gex-3Vm-1261-0.dat',
+#                  'nest/nest2/0gid-1time_in_steps-1258-0.gdf']
 #         filenames = [self.get_local_path(e) for e in files]
 #
 #         r = NestIO(filenames=filenames)
