@@ -428,22 +428,17 @@ class NestIO(BaseIO):
         """
         spiketrain_list = SpikeTrainList()
 
-        for col in self.IOs:
-            # Resolve id_column and time_column based on header information
+        # Consider all IOs that contain spike trains
+        for col in [_ for _ in self.IOs
+                    if self.__determine_file_content(_)=='spike_train']:
+            # Determine the columns to use for reading data
             resolved_id_column = id_column
             resolved_time_column = time_column
             resolved_time_offset_column = None
 
+            # For NEST 3.x, resolve id_column and time_column based on header
             if col.is_valid_nest3_file:
                 # NEST 3.x file with minimum header for spike trains
-
-                # Skip NEST 3.x file if it does not contain spike times
-                if col.has_time_series:
-                    warnings.warn(
-                        f"NEST 3.x file {col.filename} seems to contain a time series. "
-                        "Skipping loading file as Neo SpikeTrain object."
-                    )
-                    continue
 
                 # Handle id_column (sender) for NEST 3.x files
                 if col.header_indices.get('sender') is not None:
