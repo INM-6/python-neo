@@ -462,66 +462,47 @@ class NestIO(BaseIO):
 
         return spiketrain_list
 
-    def _resolve_nest3_columns(self, col, id_column, time_column, time_unit,
-                               is_analogsignal=False):
+    def _resolve_nest3_columns(self, column_io, id_column, time_column, time_unit):
         """
         Internal function for resolving NEST 3.x column headers. The function assumes a valid
         NEST 3.x file, i.e., all required headers exist.
         """
-        resolved_id_column = id_column
-        resolved_time_column = time_column
-        resolved_time_offset_column = None
-
         # Handle id_column (sender)
-        if col.header_indices.get('sender') is not None:
-            if id_column is not None and id_column != col.header_indices['sender']:
-                warnings.warn(
-                    f"id_column={id_column} provided, but 'sender' column found in header at index "
-                    f"{col.header_indices['sender']} of valid NEST 3.x file {col.filename}. Using header information."
-                )
-            resolved_id_column = col.header_indices['sender']
-        elif id_column is None and is_analogsignal:
-            # No recognized sender header, set to default for NEST 2.x
-            # TODO: Can this actually happen given we have a valid NEST 3.x file?
-            resolved_id_column = 0
+        if id_column is not None and id_column != column_io.header_indices['sender']:
+            warnings.warn(
+                f"id_column={id_column} provided, but 'sender' column found in header at index "
+                f"{column_io.header_indices['sender']} of valid NEST 3.x file {column_io.filename}. Using header information."
+            )
+        resolved_id_column = column_io.header_indices['sender']
 
         # Handle time_column (time_ms or time_steps/time_offset)
-        if col.header_indices.get('time_ms') is not None:
+        if column_io.header_indices.get('time_ms') is not None:
             # time_ms column present
-            if time_column is not None and time_column != col.header_indices['time_ms']:
+            if time_column is not None and time_column != column_io.header_indices['time_ms']:
                 warnings.warn(
                     f"time_column={time_column} provided, but 'time_ms' column found in header at index "
-                    f"{col.header_indices['time_ms']} of valid NEST 3.x file {col.filename}. Using header information."
+                    f"{column_io.header_indices['time_ms']} of valid NEST 3.x file {column_io.filename}. Using header information."
                 )
-            resolved_time_column = col.header_indices['time_ms']
+            resolved_time_column = column_io.header_indices['time_ms']
+            resolved_time_offset_column = None
 
             # Override time_unit to milliseconds
             if time_unit is not None and time_unit != pq.ms:
                 warnings.warn(
-                    f"Ignoring time_unit={time_unit} because 'time_ms' column found in header of valid NEST 3.x file {col.filename}."
+                    f"Ignoring time_unit={time_unit} because 'time_ms' column found in header of valid NEST 3.x file {column_io.filename}."
                 )
             time_unit = pq.ms
-        elif (col.header_indices.get('time_step' if not is_analogsignal else 'time_steps') is not None and
-              col.header_indices.get('time_offset') is not None):
+        elif (column_io.header_indices.get('time_step') is not None and
+              column_io.header_indices.get('time_offset') is not None):
             # time_steps and time_offset columns present
-            step_header = 'time_step' if not is_analogsignal else 'time_steps'
-            if time_column is not None and time_column != col.header_indices[step_header]:
+            if time_column is not None and time_column != column_io.header_indices['time_step']:
                 warnings.warn(
-                    f"time_column={time_column} provided, but '{step_header}' and 'time_offset' columns "
-                    f"found in header at indices {col.header_indices[step_header]} and "
-                    f"{col.header_indices['time_offset']} of valid NEST 3.x file {col.filename}. Using header information."
+                    f"time_column={time_column} provided, but 'time_step' and 'time_offset' columns "
+                    f"found in header at indices {column_io.header_indices[step_header]} and "
+                    f"{column_io.header_indices['time_offset']} of valid NEST 3.x file {column_io.filename}. Using header information."
                 )
-            resolved_time_column = col.header_indices[step_header]
-            resolved_time_offset_column = col.header_indices['time_offset']
-        elif time_column is None and is_analogsignal:
-            # No recognized time header, set to default for NEST 2.x
-            resolved_time_column = 1
-
-        if not is_analogsignal and resolved_time_column is None:
-            # While this situation should not be possible to happen due to the check for a valid
-            # NEST 3.x file, we double-check here
-            raise IOError(
-                f"Error reading file {col.filename}: No recognized time header found [col.header_indices={col.header_indices}]")
+            resolved_time_column = column_io.header_indices['time_step']
+            resolved_time_offset_column = column_io.header_indices['time_offset']
 
         return resolved_id_column, resolved_time_column, resolved_time_offset_column, time_unit
 
