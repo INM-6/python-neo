@@ -938,7 +938,7 @@ class NestIO(BaseIO):
 
         return seg
 
-    @deprecate_kwarg('gdf_id', 'id')
+    @deprecate_kwarg('gid', 'id')
     def read_analogsignal(
         self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
         sampling_period=None, id_column=0, time_column=1,
@@ -1059,15 +1059,19 @@ class NestIO(BaseIO):
         id_column=None, time_column=None, lazy=False, **args
     ):
         """
-        Reads a SpikeTrain with specified neuron ID from the data file.
+        Reads a `SpikeTrain` with specified neuron ID from the data file.
 
         Arguments
         ----------
         id : int
-            The ID of the returned SpikeTrain. The ID must be specified if
-            the file contains sender IDs. If the file is a NEST 2.x file that
-            only contains times, all spike times of one file are read into a
-            single SpikeTrain object. In this case, `id` is to be set to `None`.
+            The ID of the returned Neo `SpikeTrain`. If `None` is specified, all
+            spikes are read into a single `SpikeTrain` object, and the `id`
+            annotation is set to `None`. If the file is a NEST 2.x file that
+            only contains times and no IDs, all spike times of one file are read
+            into a single SpikeTrain object and the `id` annotation is set to
+            `None`. If the ID is present in multiple files, a `SpikeTrain`
+            object is generated for the first occurrence only (i.e., the first
+            file given in the filenames list when creating the NestIO object.)
             Default: None
         time_unit : Quantity (time)
             The time unit of recorded time stamps. For NEST 3.x files, if times
@@ -1085,9 +1089,9 @@ class NestIO(BaseIO):
             Default: None
         id_column : int or None
             Column index of neuron IDs. If None, the defaults are used. For
-            NEST version 2.x, this is 0 (the first column). For NEST version
+            NEST 2.x, this is 0 (the first column). For NEST
             3.x, the column is identified by the column header `sender` in the
-            file. In this case, `id_column` is ignored, but if not set to
+            file. In this case, `id_column` is ignored, but if it is not set to
             `None`, a warning is issued if the value conflicts with the
             header information. If the file contains a header, but the column
             headers do not match the expectancy, the header is ignored, the
@@ -1119,8 +1123,8 @@ class NestIO(BaseIO):
         -------
         spiketrain : SpikeTrain
             The requested SpikeTrain object with an annotation 'id'
-            corresponding to the sender ID. If the data comes from a NEST 2.x
-            file that only contains times, `id` is set to `None`.
+            corresponding to the sender ID or `None` if the data comes from a
+            NEST 2.x file that only contains times, or `id` was set to `None`.
         """
         if lazy:
             NotImplementedError("Lazy loading is not implemented for NestIO.")
