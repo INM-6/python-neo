@@ -176,7 +176,8 @@ class NestIO(BaseIO):
 
         analogsignal_list = []
 
-        for col in self.IOs:
+        for col in [_ for _ in self.IOs
+                    if self.__determine_file_content(_) == 'analog_signal']:
             # Resolve id_column, time_column, and value_columns based on header information
             resolved_id_column = id_column
             resolved_time_column = time_column
@@ -196,49 +197,11 @@ class NestIO(BaseIO):
                     )
                     continue
 
-                # Handle id_column (sender) for NEST 3.x files
-                if col.header_indices.get('sender') is not None:
-                    if id_column is not None:
-                        warnings.warn(
-                            f"id_column={id_column} provided, but 'sender' column found in header at index "
-                            f"{col.header_indices['sender']}. Using header information."
-                        )
-                    resolved_id_column = col.header_indices['sender']
-                elif id_column is None:
-                    # No recognized sender header, set to default for NEST 2.x
-                    # TODO: Can this actually happen given we have a valid NEST 3.x file?
-                    resolved_id_column = 0
-
-                # Handle time_column (time_ms or time_steps/time_offset) for NEST 3.x files
-                if col.header_indices.get('time_ms') is not None:
-                    # time_ms column present
-                    if time_column is not None:
-                        warnings.warn(
-                            f"time_column={time_column} provided, but 'time_ms' column found in header at index "
-                            f"{col.header_indices['time_ms']}. Using header information."
-                        )
-                    resolved_time_column = col.header_indices['time_ms']
-
-                    # Override time_unit to milliseconds
-                    if time_unit is not None and time_unit != pq.ms:
-                        warnings.warn(
-                            f"Ignoring time_unit={time_unit} because 'time_ms' column found in header."
-                        )
-                    time_unit = pq.ms
-                elif (col.header_indices.get('time_steps') is not None and
-                      col.header_indices.get('time_offset') is not None):
-                    # time_steps and time_offset columns present
-                    if time_column is not None:
-                        warnings.warn(
-                            f"time_column={time_column} provided, but 'time_steps' and 'time_offset' columns "
-                            f"found in header at indices {col.header_indices['time_steps']} and "
-                            f"{col.header_indices['time_offset']}. Using header information."
-                        )
-                    resolved_time_column = col.header_indices['time_steps']
-                    resolved_time_offset_column = col.header_indices['time_offset']
-                elif time_column is None:
-                    # No recognized time header, set to default for NEST 2.x
-                    resolved_time_column = 1
+                (resolved_id_column,
+                 resolved_time_column,
+                 resolved_time_offset_column,
+                 time_unit) = self._resolve_nest3_columns(
+                    col, id_column, time_column, time_unit, is_analogsignal=True)
 
                 # Handle value_columns - get all columns that are not standard headers
                 if value_columns is None:
@@ -431,104 +394,16 @@ class NestIO(BaseIO):
 
         # Consider all IOs that contain spike trains
         for col in [_ for _ in self.IOs
-                    if self.__determine_file_content(_)=='spike_train']:
-            # Determine the columns to use for reading data
-            resolved_id_column = id_column
-            resolved_time_column = time_column
-            resolved_time_offset_column = None
+                    if self.__determine_file_content(_) == 'spike_train']:
 
-            if col.is_valid_nest3_file:
-                # For valid NEST 3.x, resolve id_column and time_column based on
-                # header, which can be assumed to contain all necessary columns
+            (resolved_id_column,
+             resolved_time_column,
+             resolved_time_offset_column,
+             time_unit) = self._resolve_spike_train_columns(
+                col, id_column, time_column, time_unit)
 
-                # Handle id_column (sender)
-                resolved_id_column = col.header_indices['sender']
-                if id_column is not None and id_column != resolved_id_column:
-                    warnings.warn(
-                        f"id_column={id_column} provided, but 'sender' column found in header at index "
-                        f"{col.header_indices['sender']} of valid NEST 3.x file {col.filename}. Using header information."
-                    )
-
-                # Handle time_column (time_ms or time_steps/time_offset)
-                if col.header_indices.get('time_ms') is not None:
-                    # time_ms column present
-                    resolved_time_column = col.header_indices['time_ms']
-                    if time_column is not None and time_column != resolved_time_column:
-                        warnings.warn(
-                            f"time_column={time_column} provided, but 'time_ms' column found in header at index "
-                            f"{col.header_indices['time_ms']} of valid NEST 3.x file {col.filename}. Using header information."
-                        )
-
-                    # Override time_unit to milliseconds
-                    if time_unit is not None and time_unit != pq.ms:
-                        warnings.warn(
-                            f"Ignoring time_unit={time_unit} because 'time_ms' column found in header of valid NEST 3.x file {col.filename}. "
-                        )
-                    time_unit = pq.ms
-                elif (col.header_indices.get('time_step') is not None and
-                      col.header_indices.get('time_offset') is not None):
-                    # time_steps and time_offset columns present
-                    resolved_time_column = col.header_indices['time_step']
-                    resolved_time_offset_column = col.header_indices['time_offset']
-                    if time_column is not None and time_column != resolved_time_column:
-                        warnings.warn(
-                            f"time_column={time_column} provided, but 'time_steps' and 'time_offset' columns "
-                            f"found in header at indices {col.header_indices['time_step']} and "
-                            f"{col.header_indices['time_offset']} of valid NEST 3.x file {col.filename}. Using header information."
-                        )
-                else:
-                    # While this situation should not be possible to happen due to the check for a valid
-                    # NEST 3.x file, we double-check here
-                    raise IOError(f"Error reading file {col.filename}: No recognized time header found [col.header_indices={col.header_indices}]")
-            else:
-                # NEST 2.x file without header or with invalid, unrecognized header
-                num_available_columns = col.data.shape[1]
-
-                # Make sure user specified columns are valid
-                if ((id_column is not None) and (id_column >= num_available_columns)):
-                    raise ValueError(
-                        f"Specified ID column index {id_column} "
-                        f"is out of range for NEST 2.x or otherwise unrecognized file {col.filename}."
-                    )
-
-                if ((time_column is not None) and (time_column >= num_available_columns)):
-                    raise ValueError(
-                        f"Specified time column index {time_column} "
-                        f"is out of range for NEST 2.x or otherwise unrecognized file {col.filename}."
-                    )
-
-                # Resolves column indices or skips loading unrecognized files
-                if num_available_columns==2:
-                    if id_column is None:
-                        resolved_id_column = 0
-                    if time_column is None:
-                        resolved_time_column = 1
-                    if resolved_id_column == resolved_time_column:
-                        raise ValueError(
-                            f"Identical columns for ID ({id_column}) and time ({time_column}) specified for "
-                            f"NEST 2.x or otherwise unrecognized file {col.filename}."
-                        )
-                elif num_available_columns==1:
-                    if time_column is None:
-                        resolved_time_column = 0
-                else:
-                    warnings.warn(
-                        f"NEST 2.x or otherwise unrecognized file {col.filename} "
-                        f"contains more than 2 columns. "
-                        f"Skipping loading file as Neo SpikeTrain object."
-                    )
-                    continue
-
-            # Assert that the file contains spike times -- this condition must always be true
-            assert resolved_time_column is not None
-
-            # Assert that no single column is assigned twice, which should not be
-            # possible to happen.
-            # TODO: Possibly, this test can be removed or transformed to an assertion if we are sure this cannot happen
-            column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
-            column_test = [c for c in column_test if c is not None]
-            if len(column_test) != len(set(column_test)):
-                raise ValueError("Conflicting interpretations of columns detected.")
+            if resolved_time_column is None:
+                continue
 
             # Check validity of IDs being in the resolved ID column
             id_list = self._check_input_ids(id_list, resolved_id_column)
@@ -537,14 +412,11 @@ class NestIO(BaseIO):
 
             # defining standard column order for internal usage
             # [id_column, time_column, optional: time_offset]
-            column_ids = [resolved_id_column, resolved_time_column]
-            if resolved_time_offset_column is not None:
-                column_ids.append(resolved_time_offset_column)
-
-            # For NEST 2.x files, the ID column could be missing, and only a time column exists
-            for i, cid in enumerate(column_ids):
-                if cid is None:
-                    column_ids[i] = -1
+            column_ids = [
+                resolved_id_column if resolved_id_column is not None else -1,
+                resolved_time_column if resolved_time_column is not None else -1,
+                resolved_time_offset_column if resolved_time_offset_column is not None else -1
+            ]
 
             # Read columns using ColumnIO
             (condition, condition_column, sorting_column) = self._get_conditions_and_sorting(
@@ -555,58 +427,169 @@ class NestIO(BaseIO):
                 condition_column_index=condition_column,
                 sorting_column_indices=sorting_column)
 
-            # Create a list of SpikeTrains for all neuron IDs in gdf_id_list
-            # Assign spike times to neuron IDs if id_column is given
             if resolved_id_column is not None:
                 if id_list == [None]:
                     # If id_list is [None], take all IDs from the file
                     current_file_ids = np.unique(data[:, 0])
                 else:
                     current_file_ids = id_list
+            else:
+                current_file_ids = [None]
 
-                # Generate spike trains for each sender ID
-                for nid in current_file_ids:
+            # Generate spike trains for each sender ID
+            for nid in current_file_ids:
+                if resolved_id_column is not None:
                     selected_ids = self._get_selected_ids(
-                        nid, 0, 1,
-                        t_start,t_stop, time_unit,data)
-
+                        nid, 0, 1, t_start, t_stop, time_unit, data)
                     # Extract times for this ID
                     times = data[selected_ids[0]:selected_ids[1], 1]
-
-                    # Handle time_steps and time_offset case
-                    if resolved_time_offset_column is not None and data.shape[1] > 2:
-                        time_offset = data[selected_ids[0]:selected_ids[1], 2]
-                        # TODO: Is this the interpretation of time_offset?
-                        times = times - time_offset
-                    else:
-                        times = times
-
-                    # Add spike train to list
-                    spiketrain_list.append(SpikeTrain(
-                        times, units=time_unit,
-                        t_start=t_start, t_stop=t_stop,
-                        file_origin=col.filename, id=nid, **args))
-
-            # If id_column is not given, all spike times are collected in one
-            # spike train with id=None
-            else:
-                times = data[:, 1]
+                else:
+                    times = data[:, 1]
 
                 # Handle time_steps and time_offset case
-                if resolved_time_offset_column is not None and data.shape[1] > 2:
-                    time_offset = data[:, 2]
-                    # TODO: See above
+                if resolved_time_offset_column is not None:
+                    if resolved_id_column is not None:
+                        time_offset = data[selected_ids[0]:selected_ids[1], 2]
+                    else:
+                        time_offset = data[:, 2]
                     times = times - time_offset
-                else:
-                    times = times
 
                 # Add spike train to list
                 spiketrain_list.append(SpikeTrain(
                     times, units=time_unit,
                     t_start=t_start, t_stop=t_stop,
-                    file_origin=col.filename, id=None, **args))
+                    file_origin=col.filename, id=nid, **args))
 
         return spiketrain_list
+
+    def _resolve_nest3_columns(self, col, id_column, time_column, time_unit,
+                               is_analogsignal=False):
+        """
+        Internal function for resolving NEST 3.x column headers. The function assumes a valid
+        NEST 3.x file, i.e., all required headers exist.
+        """
+        resolved_id_column = id_column
+        resolved_time_column = time_column
+        resolved_time_offset_column = None
+
+        # Handle id_column (sender)
+        if col.header_indices.get('sender') is not None:
+            if id_column is not None and id_column != col.header_indices['sender']:
+                warnings.warn(
+                    f"id_column={id_column} provided, but 'sender' column found in header at index "
+                    f"{col.header_indices['sender']} of valid NEST 3.x file {col.filename}. Using header information."
+                )
+            resolved_id_column = col.header_indices['sender']
+        elif id_column is None and is_analogsignal:
+            # No recognized sender header, set to default for NEST 2.x
+            # TODO: Can this actually happen given we have a valid NEST 3.x file?
+            resolved_id_column = 0
+
+        # Handle time_column (time_ms or time_steps/time_offset)
+        if col.header_indices.get('time_ms') is not None:
+            # time_ms column present
+            if time_column is not None and time_column != col.header_indices['time_ms']:
+                warnings.warn(
+                    f"time_column={time_column} provided, but 'time_ms' column found in header at index "
+                    f"{col.header_indices['time_ms']} of valid NEST 3.x file {col.filename}. Using header information."
+                )
+            resolved_time_column = col.header_indices['time_ms']
+
+            # Override time_unit to milliseconds
+            if time_unit is not None and time_unit != pq.ms:
+                warnings.warn(
+                    f"Ignoring time_unit={time_unit} because 'time_ms' column found in header of valid NEST 3.x file {col.filename}."
+                )
+            time_unit = pq.ms
+        elif (col.header_indices.get('time_step' if not is_analogsignal else 'time_steps') is not None and
+              col.header_indices.get('time_offset') is not None):
+            # time_steps and time_offset columns present
+            step_header = 'time_step' if not is_analogsignal else 'time_steps'
+            if time_column is not None and time_column != col.header_indices[step_header]:
+                warnings.warn(
+                    f"time_column={time_column} provided, but '{step_header}' and 'time_offset' columns "
+                    f"found in header at indices {col.header_indices[step_header]} and "
+                    f"{col.header_indices['time_offset']} of valid NEST 3.x file {col.filename}. Using header information."
+                )
+            resolved_time_column = col.header_indices[step_header]
+            resolved_time_offset_column = col.header_indices['time_offset']
+        elif time_column is None and is_analogsignal:
+            # No recognized time header, set to default for NEST 2.x
+            resolved_time_column = 1
+
+        if not is_analogsignal and resolved_time_column is None:
+            # While this situation should not be possible to happen due to the check for a valid
+            # NEST 3.x file, we double-check here
+            raise IOError(
+                f"Error reading file {col.filename}: No recognized time header found [col.header_indices={col.header_indices}]")
+
+        return resolved_id_column, resolved_time_column, resolved_time_offset_column, time_unit
+
+    def _resolve_spike_train_columns(self, col, id_column, time_column, time_unit):
+        """
+        Internal function to resolve column indices for spike trains.
+        """
+        if col.is_valid_nest3_file:
+            # Here we can assume all columns exist by heads and the problem can be reduced to a simple mapping
+            (resolved_id_column,
+             resolved_time_column,
+             resolved_time_offset_column,
+             time_unit) = self._resolve_nest3_columns(
+                col, id_column, time_column, time_unit, is_analogsignal=False)
+        else:
+            # NEST 2.x file without header or with invalid, unrecognized header
+            resolved_id_column = id_column
+            resolved_time_column = time_column
+            resolved_time_offset_column = None
+            num_available_columns = col.data.shape[1]
+
+            # Make sure user specified columns are valid
+            if ((id_column is not None) and (id_column >= num_available_columns)):
+                raise ValueError(
+                    f"Specified ID column index {id_column} "
+                    f"is out of range for NEST 2.x or otherwise unrecognized file {col.filename}."
+                )
+
+            if ((time_column is not None) and (time_column >= num_available_columns)):
+                raise ValueError(
+                    f"Specified time column index {time_column} "
+                    f"is out of range for NEST 2.x or otherwise unrecognized file {col.filename}."
+                )
+
+            # Resolves column indices or skips loading unrecognized files
+            if num_available_columns == 2:
+                if id_column is None:
+                    resolved_id_column = 0
+                if time_column is None:
+                    resolved_time_column = 1
+                if resolved_id_column == resolved_time_column:
+                    raise ValueError(
+                        f"Identical columns for ID ({id_column}) and time ({time_column}) specified for "
+                        f"NEST 2.x or otherwise unrecognized file {col.filename}."
+                    )
+            elif num_available_columns == 1:
+                if time_column is None:
+                    resolved_time_column = 0
+                resolved_id_column = None
+            else:
+                warnings.warn(
+                    f"NEST 2.x or otherwise unrecognized file {col.filename} "
+                    f"contains more than 2 columns. "
+                    f"Skipping loading file as Neo SpikeTrain object."
+                )
+                return None, None, None, time_unit
+
+        # Assert that the file contains spike times -- this condition must always be true
+        assert resolved_time_column is not None
+
+        # Assert that no single column is assigned twice, which should not be
+        # possible to happen.
+        column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
+        column_test = [c for c in column_test if c is not None]
+        if len(column_test) != len(set(column_test)):
+            raise ValueError("Conflicting interpretations of columns detected.")
+
+        return resolved_id_column, resolved_time_column, resolved_time_offset_column, time_unit
 
     def _check_input_ids(self, id_list, id_column):
         """
@@ -922,17 +905,17 @@ class NestIO(BaseIO):
                                 os.stat(self.filenames[-1]).st_mtime)
 
         # Load analogsignals and attach to Segment
-        # seg.analogsignals = self.__read_analogsignals(
-        #     id_list,
-        #     time_unit,
-        #     t_start,
-        #     t_stop,
-        #     sampling_period=sampling_period,
-        #     id_column=id_column_dat,
-        #     time_column=time_column_dat,
-        #     value_columns=value_columns_dat,
-        #     value_types=value_types,
-        #     value_units=value_units)
+        seg.analogsignals = self.__read_analogsignals(
+            id_list,
+            time_unit,
+            t_start,
+            t_stop,
+            sampling_period=sampling_period,
+            id_column=id_column_dat,
+            time_column=time_column_dat,
+            value_columns=value_columns_dat,
+            value_types=value_types,
+            value_units=value_units)
         seg.spiketrains = self.__read_spiketrains(
             id_list, time_unit, t_start, t_stop, id_column=id_column_gdf, time_column=time_column_gdf)
 

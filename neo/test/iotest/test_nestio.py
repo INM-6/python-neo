@@ -24,7 +24,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         - with GIDs, with time as integer
         """
         filename = self.get_local_path('nest/nest2/0gid-1time-2gex-3Vm-1261-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                             sampling_period=pq.ms, lazy=False,
                             id_column=0, time_column=1,
@@ -35,7 +35,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
                        value_types='V_m')
 
         filename = self.get_local_path('nest/nest2/0gid-1time_in_steps-2Vm-1263-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                             time_unit=pq.CompoundUnit('0.1*ms'),
                             sampling_period=pq.ms, lazy=False,
@@ -48,7 +48,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
                        value_types='V_m')
 
         filename = self.get_local_path('nest/nest2/0gid-1time-2Vm-1259-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                             time_unit=pq.CompoundUnit('0.1*ms'),
                             sampling_period=pq.ms, lazy=False,
@@ -83,7 +83,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         """
         filename = self.get_local_path("nest/nest2/0gid-1time-2gex-3Vm-1261-0.dat")
         id_to_test = 1
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         seg = r.read_segment(id_list=[id_to_test],
                              t_stop=1000. * pq.ms,
                              sampling_period=pq.ms, lazy=False,
@@ -101,7 +101,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         Tests if signals are correctly stored in a segment.
         """
         filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
 
         id_list_to_test = range(1, 10)
         seg = r.read_segment(
@@ -136,7 +136,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         Tests if signals are correctly stored in a block.
         """
         filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
 
         id_list_to_test = range(1, 10)
         blk = r.read_block(
@@ -163,7 +163,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         - User specifies t_start < 1.*sampling_period
         """
         filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         with self.assertRaises(ValueError):
             r.read_segment(t_stop=1000.0 * pq.ms, lazy=False, id_column_dat=0, time_column_dat=1)
         with self.assertRaises(ValueError):
@@ -191,7 +191,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         Test for correct t_start and t_stop values of AnalogSignalArrays.
         """
         filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
 
         t_start_targ = 450.0 * pq.ms
         t_stop_targ = 480.0 * pq.ms
@@ -208,8 +208,8 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         )
         anasigs = seg.analogsignals
         for anasig in anasigs:
-            self.assertTrue(anasig.t_start == t_start_targ)
-            self.assertTrue(anasig.t_stop == t_stop_targ)
+            self.assertEqual(anasig.t_start, t_start_targ)
+            self.assertEqual(anasig.t_stop, t_stop_targ)
 
     # TODO: This test is not working yet since there are additional warnings,
     #  and the behavior of the function is not fully clear in terms of if
@@ -220,7 +220,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
     #     Test for warning, when no time column id was provided.
     #     """
     #     filename = self.get_local_path('nest/nest2/0gid-1time-2gex-1262-0.dat')
-    #     r = NestIO(filenames=filename, target_object='AnalogSignal')
+    #     r = NestIO(filenames=filename)
     #
     #     t_start_targ = 450.0 * pq.ms
     #     t_stop_targ = 460.0 * pq.ms
@@ -255,7 +255,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
         Test for simultaneous loading of multiple columns from dat file.
         """
         filename = self.get_local_path('nest/nest2/0gid-1time-2Vm-3Iex-4Iin-1264-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
 
         sampling_period = pq.CompoundUnit("5*ms")
         seg = r.read_segment(id_list=[1001], value_columns_dat=[2, 3], sampling_period=sampling_period)
@@ -264,7 +264,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
 
     def test_single_gid(self):
         filename = self.get_local_path('nest/nest2/N1-0gid-1time-2Vm-1265-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         anasig = r.read_analogsignal(id=1, t_stop=1000. * pq.ms,
                                      time_unit=pq.CompoundUnit('0.1*ms'),
                                      sampling_period=pq.ms, lazy=False,
@@ -274,7 +274,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
 
     def test_no_gid(self):
         filename = self.get_local_path('nest/nest2/N1-0time-1Vm-1266-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         anasig = r.read_analogsignal(id=None, t_stop=1000. * pq.ms,
                                      time_unit=pq.CompoundUnit('0.1*ms'),
                                      sampling_period=pq.ms, lazy=False,
@@ -285,7 +285,7 @@ class TestNestIO_Analogsignals(BaseTestIO, unittest.TestCase):
 
     def test_no_gid_no_time(self):
         filename = self.get_local_path('nest/nest2/N1-0Vm-1267-0.dat')
-        r = NestIO(filenames=filename, target_object='AnalogSignal')
+        r = NestIO(filenames=filename)
         anasig = r.read_analogsignal(sampling_period=pq.ms, lazy=False,
                                      id_column=None, time_column=None,
                                      value_column=0, value_type='V_m')
