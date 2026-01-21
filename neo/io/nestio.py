@@ -436,49 +436,51 @@ class NestIO(BaseIO):
             resolved_time_column = time_column
             resolved_time_offset_column = None
 
-            # For valid NEST 3.x, resolve id_column and time_column based on
-            # header, which can be assumed to contain all necessary columns
             if col.is_valid_nest3_file:
+                # For valid NEST 3.x, resolve id_column and time_column based on
+                # header, which can be assumed to contain all necessary columns
+
                 # Handle id_column (sender)
                 resolved_id_column = col.header_indices['sender']
                 if id_column is not None and id_column != resolved_id_column:
                     warnings.warn(
                         f"id_column={id_column} provided, but 'sender' column found in header at index "
-                        f"{col.header_indices['sender']}. Using header information."
+                        f"{col.header_indices['sender']} of valid NEST 3.x file {col.filename}. Using header information."
                     )
 
                 # Handle time_column (time_ms or time_steps/time_offset)
                 if col.header_indices.get('time_ms') is not None:
                     # time_ms column present
-                    if time_column is not None:
+                    resolved_time_column = col.header_indices['time_ms']
+                    if time_column is not None and time_column != resolved_time_column:
                         warnings.warn(
                             f"time_column={time_column} provided, but 'time_ms' column found in header at index "
-                            f"{col.header_indices['time_ms']}. Using header information."
+                            f"{col.header_indices['time_ms']} of valid NEST 3.x file {col.filename}. Using header information."
                         )
-                    resolved_time_column = col.header_indices['time_ms']
 
                     # Override time_unit to milliseconds
                     if time_unit is not None and time_unit != pq.ms:
                         warnings.warn(
-                            f"Ignoring time_unit={time_unit} because 'time_ms' column found in header. "
+                            f"Ignoring time_unit={time_unit} because 'time_ms' column found in header of valid NEST 3.x file {col.filename}. "
                         )
                     time_unit = pq.ms
                 elif (col.header_indices.get('time_steps') is not None and
                       col.header_indices.get('time_offset') is not None):
                     # time_steps and time_offset columns present
-                    if time_column is not None:
+                    resolved_time_column = col.header_indices['time_steps']
+                    resolved_time_offset_column = col.header_indices['time_offset']
+                    if time_column is not None and time_column != resolved_time_column:
                         warnings.warn(
                             f"time_column={time_column} provided, but 'time_steps' and 'time_offset' columns "
                             f"found in header at indices {col.header_indices['time_steps']} and "
-                            f"{col.header_indices['time_offset']}. Using header information."
+                            f"{col.header_indices['time_offset']} of valid NEST 3.x file {col.filename}. Using header information."
                         )
-                    resolved_time_column = col.header_indices['time_steps']
-                    resolved_time_offset_column = col.header_indices['time_offset']
-                elif time_column is None:
-                    # No recognized time header, set to default for NEST 2.x
-                    resolved_time_column = 1
+                else:
+                    # While this situation should not be possible to happen due to the check for a valid
+                    # NEST 3.x file, we double-check here
+                    raise IOError("Error reading file {col.filename}: No recognized time header found.")
             else:
-                # NEST 2.x file without header or unrecognized header
+                # NEST 2.x file without header or with invalid, unrecognized header
                 num_available_columns = col.data.shape[1]
 
                 # Make sure user specified columns are valid
@@ -494,6 +496,7 @@ class NestIO(BaseIO):
                         f"is out of range for file {col.filename}."
                     )
 
+                # Resolves column indices or skips loading unrecognized files
                 if num_available_columns==2:
                     if id_column is None:
                         resolved_id_column = 0
