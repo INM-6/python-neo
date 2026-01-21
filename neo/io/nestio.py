@@ -498,7 +498,7 @@ class NestIO(BaseIO):
             if time_column is not None and time_column != column_io.header_indices['time_step']:
                 warnings.warn(
                     f"time_column={time_column} provided, but 'time_step' and 'time_offset' columns "
-                    f"found in header at indices {column_io.header_indices[step_header]} and "
+                    f"found in header at indices {column_io.header_indices['time_step']} and "
                     f"{column_io.header_indices['time_offset']} of valid NEST 3.x file {column_io.filename}. Using header information."
                 )
             resolved_time_column = column_io.header_indices['time_step']
@@ -516,7 +516,7 @@ class NestIO(BaseIO):
              resolved_time_column,
              resolved_time_offset_column,
              time_unit) = self._resolve_nest3_columns(
-                col, id_column, time_column, time_unit, is_analogsignal=False)
+                col, id_column, time_column, time_unit)
         else:
             # NEST 2.x file without header or with invalid, unrecognized header
             resolved_id_column = id_column
@@ -538,37 +538,38 @@ class NestIO(BaseIO):
                 )
 
             # Resolves column indices or skips loading unrecognized files
-            if num_available_columns == 2:
+            if num_available_columns >= 2:
                 if id_column is None:
+                    # Default: IDs in column 1
                     resolved_id_column = 0
                 if time_column is None:
+                    # Default: times in column 2
                     resolved_time_column = 1
                 if resolved_id_column == resolved_time_column:
                     raise ValueError(
                         f"Identical columns for ID ({id_column}) and time ({time_column}) specified for "
                         f"NEST 2.x or otherwise unrecognized file {col.filename}."
                     )
+                if num_available_columns > 2:
+                    warnings.warn(
+                        f"NEST 2.x or otherwise unrecognized file {col.filename} "
+                        f"contains more than 2 columns, but is expected to contain spike data due to its extension. "
+                        f"Using columns {resolved_id_column} and {resolved_time_column} to read data")
             elif num_available_columns == 1:
                 if time_column is None:
                     resolved_time_column = 0
                 resolved_id_column = None
             else:
-                warnings.warn(
-                    f"NEST 2.x or otherwise unrecognized file {col.filename} "
-                    f"contains more than 2 columns. "
-                    f"Skipping loading file as Neo SpikeTrain object."
-                )
                 return None, None, None, time_unit
 
         # Assert that the file contains spike times -- this condition must always be true
         assert resolved_time_column is not None
 
-        # Assert that no single column is assigned twice, which should not be
+        # Sanity check: Assert that no single column is assigned twice, which should not be
         # possible to happen.
         column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
         column_test = [c for c in column_test if c is not None]
-        if len(column_test) != len(set(column_test)):
-            raise ValueError("Conflicting interpretations of columns detected.")
+        assert(len(column_test) == len(set(column_test)))
 
         return resolved_id_column, resolved_time_column, resolved_time_offset_column, time_unit
 
