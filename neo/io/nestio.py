@@ -436,24 +436,18 @@ class NestIO(BaseIO):
             resolved_time_column = time_column
             resolved_time_offset_column = None
 
-            # For NEST 3.x, resolve id_column and time_column based on header
+            # For valid NEST 3.x, resolve id_column and time_column based on
+            # header, which can be assumed to contain all necessary columns
             if col.is_valid_nest3_file:
-                # NEST 3.x file with minimum header for spike trains
+                # Handle id_column (sender)
+                resolved_id_column = col.header_indices['sender']
+                if id_column is not None and id_column != resolved_id_column:
+                    warnings.warn(
+                        f"id_column={id_column} provided, but 'sender' column found in header at index "
+                        f"{col.header_indices['sender']}. Using header information."
+                    )
 
-                # Handle id_column (sender) for NEST 3.x files
-                if col.header_indices.get('sender') is not None:
-                    if id_column is not None:
-                        warnings.warn(
-                            f"id_column={id_column} provided, but 'sender' column found in header at index "
-                            f"{col.header_indices['sender']}. Using header information."
-                        )
-                    resolved_id_column = col.header_indices['sender']
-                elif id_column is None:
-                    # No recognized sender header, set to default for NEST 2.x
-                    # TODO: Can this actually happen given we have a valid NEST 3.x file?
-                    resolved_id_column = 0
-
-                # Handle time_column (time_ms or time_steps/time_offset) for NEST 3.x files
+                # Handle time_column (time_ms or time_steps/time_offset)
                 if col.header_indices.get('time_ms') is not None:
                     # time_ms column present
                     if time_column is not None:
