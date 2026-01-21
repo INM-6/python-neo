@@ -522,16 +522,18 @@ class NestIO(BaseIO):
             # Assert that the file contains spike times -- this condition must always be true
             assert resolved_time_column is not None
 
+            # Assert that no single column is assigned twice, which should not be
+            # possible to happen.
+            # TODO: Possibly, this test can be removed or transformed to an assertion if we are sure this cannot happen
+            column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
+            column_test = [c for c in column_test if c is not None]
+            if len(column_test) != len(set(column_test)):
+                raise ValueError("Conflicting interpretations of columns detected.")
+
             # Check validity of IDs being in the resolved ID column
             id_list = self._check_input_ids(id_list, resolved_id_column)
             # Check validity of start and stop times
             t_start, t_stop = self._check_input_times(t_start, t_stop, mandatory=False)
-
-            # Assert that no single column is assigned twice
-            column_test = [resolved_id_column, resolved_time_column, resolved_time_offset_column]
-            column_test = [c for c in column_test if c is not None]
-            if len(column_test) != len(set(column_test)):
-                raise ValueError("One or more columns have been specified to contain the same data.")
 
             # defining standard column order for internal usage
             # [id_column, time_column, optional: time_offset]
@@ -544,20 +546,20 @@ class NestIO(BaseIO):
                 if cid is None:
                     column_ids[i] = -1
 
+            # Read columns using ColumnIO
             (condition, condition_column, sorting_column) = self._get_conditions_and_sorting(
-                resolved_id_column, resolved_time_column, id_list, t_start, t_stop
-            )
-
+                resolved_id_column, resolved_time_column, id_list, t_start, t_stop)
             data = col.get_columns(
                 column_indices=column_ids,
                 condition=condition,
                 condition_column_index=condition_column,
                 sorting_column_indices=sorting_column)
 
-            # create a list of SpikeTrains for all neuron IDs in gdf_id_list
-            # assign spike times to neuron IDs if id_column is given
+            # Create a list of SpikeTrains for all neuron IDs in gdf_id_list
+            # Assign spike times to neuron IDs if id_column is given
             if resolved_id_column is not None:
-                if (id_list == []) and resolved_id_column is not None:
+                if id_list == [None]:
+                    # If id_list is [None], take all IDs from the file
                     current_file_ids = np.unique(data[:, 0])
                 else:
                     current_file_ids = id_list
@@ -574,16 +576,10 @@ class NestIO(BaseIO):
                     # Handle time_steps and time_offset case
                     if resolved_time_offset_column is not None and data.shape[1] > 2:
                         time_offset = data[selected_ids[0]:selected_ids[1], 2]
+                        # TODO: Is this the interpretation of time_offset?
                         times = times - time_offset
                     else:
                         times = times
-
-                    spiketrain_list.append(SpikeTrain(times, units=time_unit,
-                                                      t_start=t_start,
-                                                      t_stop=t_stop,
-                                                      id=nid,
-                                                      file_origin=col.filename,
-                                                      **args))
 
             # if id_column is not given, all spike times are collected in one
             #  spike train with id=None
@@ -593,16 +589,17 @@ class NestIO(BaseIO):
                 # Handle time_steps and time_offset case
                 if resolved_time_offset_column is not None and data.shape[1] > 2:
                     time_offset = data[:, 2]
+                    # TODO: See above
                     times = times - time_offset
                 else:
                     times = times
 
-                spiketrain_list.append(SpikeTrain(times, units=time_unit,
-                                                  t_start=t_start,
-                                                  t_stop=t_stop,
-                                                  id=None,
-                                                  file_origin=col.filename,
-                                                  **args))
+            # Add spike train to list
+            spiketrain_list.append(SpikeTrain(
+                times, units=time_unit,
+                t_start=t_start, t_stop=t_stop,
+                file_origin=col.filename, id=nid, **args))
+
         return spiketrain_list
 
     def _check_input_ids(self, id_list, id_column):
@@ -735,30 +732,29 @@ class NestIO(BaseIO):
             raise ValueError("sampling_period is not specified as a unit.")
         return sampling_period
 
-    def _get_conditions_and_sorting(self, id_column, time_column, gid_list, t_start, t_stop):
+    def _get_conditions_and_sorting(self, id_column, time_column, id_list, t_start, t_stop):
         """
         Calculates the condition, condition_column and sorting_column based on
         other parameters supplied for loading the data.
 
         id_column: int, id of the column containing gids.
         time_column: int, id of the column containing times.
-        gid_list: list of int, gid to be loaded.
+        id_list: list of int, gid to be loaded.
         t_start: pq.quantity.Quantity, start of the time range to be loaded.
         t_stop: pq.quantity.Quantity, stop of the time range to be loaded.
 
         Returns
-        updated [condition, condition_column, sorting_column].
+        [condition, condition_column, sorting_column].
         """
         condition, condition_column = None, None
         sorting_column = []
         curr_id = 0
-        if (gid_list != [None]) and (gid_list is not None):
-            if gid_list != []:
 
-                def condition(x):
-                    return x in gid_list
-
-                condition_column = id_column
+        # ID list is a list of numbers (not None or empty list, see check_input_ids)
+        if (id_list != [None]):
+            def condition(x):
+                return x in id_list
+            condition_column = id_column
             sorting_column.append(curr_id)  # Sorting according to gids first
             curr_id += 1
         if time_column is not None:
@@ -766,9 +762,11 @@ class NestIO(BaseIO):
             curr_id += 1
         elif t_start != -np.inf and t_stop != np.inf:
             warnings.warn("Ignoring t_start and t_stop parameters, because no " "time column id is provided.")
-        if sorting_column == []:
+
+        if not sorting_column:
             sorting_column = None
         else:
+            # Reverse sorting column, such that IDs are sorted first, then by time
             sorting_column = sorting_column[::-1]
         return condition, condition_column, sorting_column
 
@@ -786,7 +784,7 @@ class NestIO(BaseIO):
         data: numpy array, data to load.
 
         Returns
-        list of selected gids
+        tuple of ID specifying the minimum and maximum index where data is stored that matches the criteria.
         """
         gids = np.array([0, data.shape[0]])
         if id_column is not None and gid:
@@ -918,22 +916,19 @@ class NestIO(BaseIO):
                                 os.stat(self.filenames[-1]).st_mtime)
 
         # Load analogsignals and attach to Segment
-        if 'AnalogSignal' == self.target_object:
-            seg.analogsignals = self.__read_analogsignals(
-                id_list,
-                time_unit,
-                t_start,
-                t_stop,
-                sampling_period=sampling_period,
-                id_column=id_column_dat,
-                time_column=time_column_dat,
-                value_columns=value_columns_dat,
-                value_types=value_types,
-                value_units=value_units)
-        if 'SpikeTrain' == self.target_object:
-            seg.spiketrains = self.__read_spiketrains(
-                id_list, time_unit, t_start, t_stop, id_column=id_column_gdf, time_column=time_column_gdf
-            )
+        # seg.analogsignals = self.__read_analogsignals(
+        #     id_list,
+        #     time_unit,
+        #     t_start,
+        #     t_stop,
+        #     sampling_period=sampling_period,
+        #     id_column=id_column_dat,
+        #     time_column=time_column_dat,
+        #     value_columns=value_columns_dat,
+        #     value_types=value_types,
+        #     value_units=value_units)
+        seg.spiketrains = self.__read_spiketrains(
+            id_list, time_unit, t_start, t_stop, id_column=id_column_gdf, time_column=time_column_gdf)
 
         return seg
 

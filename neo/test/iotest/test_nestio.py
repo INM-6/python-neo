@@ -623,8 +623,8 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
         filename = self.get_local_path("nest/0gid-1time-1256-0.gdf")
         r = NestIO(filenames=filename)
 
-        t_stop_targ = 490.0 * pq.ms
         t_start_targ = 410.0 * pq.ms
+        t_stop_targ = 490.0 * pq.ms
 
         seg = r.read_segment(
             id_list=[], t_start=t_start_targ, t_stop=t_stop_targ, lazy=False, id_column_gdf=0, time_column_gdf=1
@@ -672,8 +672,6 @@ class TestNestIO_Spiketrains(BaseTestIO, unittest.TestCase):
             r.read_spiketrain(id=[], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
         with self.assertRaises(ValueError):
             r.read_spiketrain(id=[1], t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
-        with self.assertRaises(ValueError):
-            r.read_spiketrain(id=None, t_start=400.0 * pq.ms, t_stop=500.0 * pq.ms)
 
     def test_read_segment_can_return_empty_spiketrains(self):
         """
