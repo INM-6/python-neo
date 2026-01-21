@@ -1050,9 +1050,6 @@ class NestIO(BaseIO):
             value_units=value_unit,
         )[0]
 
-    # TODO: There is still a bug in the logic here -- if there are multiple files
-    #    Being read from, __read_spiketrains will return one spike train per
-    #    file -- this will break the expected behavior here
     @deprecate_kwarg('gdf_id', 'id')
     def read_spiketrain(
         self, id=None, time_unit=pq.ms, t_start=None, t_stop=None,
